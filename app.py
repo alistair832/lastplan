@@ -10,6 +10,7 @@ import streamlit as st
 from PIL import Image
 
 from dataset_utils import save_summary, scan_dataset
+from education_ui import show_fruit_lesson, show_learning_browser
 from prepare_dataset import extract_dataset
 from verifier import FruitVerifier
 
@@ -18,10 +19,10 @@ SUMMARY = Path("artifacts/dataset_summary.json")
 DATA_DIR = Path("data")
 UPLOAD_DIR = Path("artifacts/uploads")
 
-st.set_page_config(page_title="FruitScan AI", page_icon="🍓", layout="wide")
-st.title("🍓 FruitScan AI")
+st.set_page_config(page_title="FruitScan Kids", page_icon="🍓", layout="wide")
+st.title("🍓 FruitScan Kids")
 st.caption(
-    "Upload a fruit image or use the live camera, classify it, and verify the result against the learned dataset profile."
+    "Scan a fruit, hear its name, discover its seeds, learn how it grows, and make simple fruit food with an adult."
 )
 
 
@@ -56,7 +57,7 @@ def get_verifier():
 
 
 def show_prediction_result(image: Image.Image, verifier: FruitVerifier, source_caption: str) -> None:
-    with st.spinner("Scanning and verifying image..."):
+    with st.spinner("Scanning and identifying the fruit..."):
         result = verifier.predict(image)
 
     left, right = st.columns([1, 1.25])
@@ -65,50 +66,132 @@ def show_prediction_result(image: Image.Image, verifier: FruitVerifier, source_c
 
     with right:
         if result.verified:
-            st.success(f"✅ VERIFIED: {result.label}")
-            st.subheader(result.label)
+            st.success(f"✅ I found a {result.label}!")
+            st.header(result.label)
+            st.write("Great job! Now we can learn about this fruit together.")
         else:
-            st.warning("⚠️ UNKNOWN / NOT VERIFIED")
-            st.subheader("The system rejected this image")
+            st.warning("🤔 I am not sure what this is yet.")
+            st.subheader("Try another picture")
+            st.write(
+                "Place one Apple, Banana, Grape, Mango, or Strawberry clearly in the picture and try again."
+            )
 
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Classifier confidence", f"{result.confidence * 100:.2f}%")
-        c2.metric("Dataset similarity", f"{result.dataset_similarity * 100:.2f}%")
-        c3.metric("Verification score", f"{result.verification_score:.1f}%")
-        st.metric("Class separation margin", f"{result.class_margin * 100:.2f}%")
+        with st.expander("🔬 Teacher / model details", expanded=False):
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Classifier confidence", f"{result.confidence * 100:.2f}%")
+            c2.metric("Dataset similarity", f"{result.dataset_similarity * 100:.2f}%")
+            c3.metric("Verification score", f"{result.verification_score:.1f}%")
+            st.metric("Class separation margin", f"{result.class_margin * 100:.2f}%")
+            if result.reasons:
+                st.write("**Why the image was not verified:**")
+                for reason in result.reasons:
+                    st.write(f"- {reason}")
 
-        if result.reasons:
-            st.write("**Why it was rejected:**")
-            for reason in result.reasons:
-                st.write(f"- {reason}")
+    if result.verified:
+        st.divider()
+        show_fruit_lesson(result.label, heading=False)
 
-    st.divider()
-    st.subheader("All fruit probabilities")
-    prob_df = pd.DataFrame(
-        [
-            {"Fruit": name, "Probability": value}
-            for name, value in result.probabilities.items()
-        ]
-    ).sort_values("Probability", ascending=False)
-    prob_df["Probability %"] = prob_df["Probability"].map(
-        lambda x: f"{x * 100:.2f}%"
-    )
-    st.dataframe(
-        prob_df[["Fruit", "Probability %"]],
-        hide_index=True,
-        use_container_width=True,
-    )
-    st.bar_chart(prob_df.set_index("Fruit")["Probability"])
+    with st.expander("📊 All fruit probabilities", expanded=False):
+        prob_df = pd.DataFrame(
+            [
+                {"Fruit": name, "Probability": value}
+                for name, value in result.probabilities.items()
+            ]
+        ).sort_values("Probability", ascending=False)
+        prob_df["Probability %"] = prob_df["Probability"].map(
+            lambda x: f"{x * 100:.2f}%"
+        )
+        st.dataframe(
+            prob_df[["Fruit", "Probability %"]],
+            hide_index=True,
+            use_container_width=True,
+        )
+        st.bar_chart(prob_df.set_index("Fruit")["Probability"])
 
 
-predict_tab, setup_tab, about_tab = st.tabs(
-    ["🔎 Fruit Verification", "🛠️ Model Setup", "ℹ️ About"]
+scan_tab, learn_tab, setup_tab, about_tab = st.tabs(
+    ["📷 Scan & Learn", "🎓 Learn Fruits", "🛠️ Model Setup", "ℹ️ About"]
 )
 
+with scan_tab:
+    verifier, verifier_error = get_verifier()
+    if verifier is None:
+        st.warning("The fruit recognition model is not ready yet.")
+        if verifier_error:
+            st.error(f"Checkpoint loading error: {verifier_error}")
+        st.write(
+            "Open **Model Setup**. You can install a trained `fruit_classifier.pt` file or prepare the dataset and train the model."
+        )
+    else:
+        with st.sidebar:
+            st.header("🍓 FruitScan Kids")
+            st.success("Fruit recognition ready")
+            st.success("Camera ready")
+            st.info("Learning mode: Early Years")
+            meta = verifier.metadata
+            st.write(f"**Fruits:** {', '.join(verifier.class_names)}")
+            st.write(f"**Model test accuracy:** {float(meta.get('test_accuracy', 0)) * 100:.2f}%")
+
+        st.header("📷 Scan a Fruit")
+        st.write(
+            "Take a picture of one fruit or upload a photo. When FruitScan recognises it, a learning lesson will open automatically."
+        )
+
+        input_mode = st.radio(
+            "Choose a picture source",
+            ["📁 Upload Image", "🎥 Live Front Camera"],
+            horizontal=True,
+        )
+
+        image = None
+        source_caption = "Fruit image"
+
+        if input_mode == "📁 Upload Image":
+            uploaded = st.file_uploader(
+                "Choose a JPG, PNG, JPEG, or WebP fruit image",
+                type=["jpg", "jpeg", "png", "webp"],
+                key="fruit_image",
+            )
+            if uploaded is not None:
+                try:
+                    image = Image.open(uploaded).convert("RGB")
+                    source_caption = "Uploaded fruit"
+                except Exception:
+                    st.error("I could not read this file as an image.")
+            else:
+                st.info("Choose a fruit picture to start learning.")
+
+        else:
+            st.markdown("### 🎥 Live Front Camera")
+            st.caption(
+                "Allow camera permission, hold one fruit clearly in front of the camera, then take a picture."
+            )
+            camera_photo = st.camera_input(
+                "Take a fruit picture",
+                key="front_camera",
+                help="Your browser or phone controls which physical camera is used.",
+            )
+            if camera_photo is not None:
+                try:
+                    image = Image.open(camera_photo).convert("RGB")
+                    source_caption = "Camera fruit"
+                except Exception:
+                    st.error("I could not read the camera picture.")
+            else:
+                st.info("Take a picture of a fruit to start learning.")
+
+        st.caption("FruitScan currently teaches: 🍎 Apple · 🍌 Banana · 🍇 Grape · 🥭 Mango · 🍓 Strawberry")
+
+        if image is not None:
+            show_prediction_result(image, verifier, source_caption)
+
+with learn_tab:
+    show_learning_browser()
+
 with setup_tab:
-    st.header("Model Setup")
+    st.header("🛠️ Model Setup")
     st.write(
-        "Use this page to prepare the Kaggle dataset and create the trained verifier without typing the Python commands manually."
+        "This section is for teachers, parents, or project setup. Children can use Scan & Learn and Learn Fruits."
     )
 
     if CHECKPOINT.exists():
@@ -141,15 +224,15 @@ with setup_tab:
                 FruitVerifier(CHECKPOINT)
             except Exception as exc:
                 CHECKPOINT.unlink(missing_ok=True)
-                st.error(f"This checkpoint is not compatible with FruitScan AI: {exc}")
+                st.error(f"This checkpoint is not compatible with FruitScan Kids: {exc}")
             else:
                 st.success("Model installed successfully.")
                 st.rerun()
 
     st.divider()
-    st.subheader("Option B — Build the model from your Kaggle ZIP")
+    st.subheader("Option B — Build the model from the Kaggle ZIP")
     st.caption(
-        "This is best done on your own computer. Streamlit Community Cloud has limited CPU/RAM, so full model training there can be slow or may stop."
+        "Full training is best done on a computer or cloud runner with enough CPU/RAM."
     )
 
     zip_upload = st.file_uploader(
@@ -185,9 +268,6 @@ with setup_tab:
     if dataset_ready:
         st.success("Training dataset is ready.")
         epochs = st.slider("Training epochs", min_value=4, max_value=16, value=8, step=1)
-        st.info(
-            "For the best speed, run this Streamlit app on a computer with a GPU. The first training run may also download MobileNetV3 pretrained weights."
-        )
         if st.button("2️⃣ Train classifier + verifier", type="primary", use_container_width=True):
             CHECKPOINT.parent.mkdir(parents=True, exist_ok=True)
             cmd = [
@@ -203,7 +283,7 @@ with setup_tab:
             ]
             log_box = st.empty()
             lines: list[str] = []
-            with st.status("Training FruitScan AI...", expanded=True) as status:
+            with st.status("Training FruitScan Kids...", expanded=True) as status:
                 process = subprocess.Popen(
                     cmd,
                     stdout=subprocess.PIPE,
@@ -219,111 +299,37 @@ with setup_tab:
                 if return_code == 0 and CHECKPOINT.exists():
                     status.update(label="Training completed", state="complete")
                     st.cache_resource.clear()
-                    st.success("The trained model is ready. Open the Fruit Verification tab.")
+                    st.success("The trained model is ready. Open Scan & Learn.")
                     st.rerun()
                 else:
                     status.update(label="Training failed", state="error")
-                    st.error(
-                        "Training did not finish successfully. Check the log above. On Streamlit Cloud, try training locally instead."
-                    )
-
-with predict_tab:
-    verifier, verifier_error = get_verifier()
-    if verifier is None:
-        st.warning("The prediction model is not ready yet.")
-        if verifier_error:
-            st.error(f"Checkpoint loading error: {verifier_error}")
-        st.write(
-            "Open **Model Setup** above. You can either install a trained `fruit_classifier.pt` file or prepare the dataset and train the model from the Streamlit interface."
-        )
-    else:
-        with st.sidebar:
-            st.header("System status")
-            st.success("Classifier ready")
-            st.success("Dataset verifier ready")
-            st.success("Camera input ready")
-            meta = verifier.metadata
-            st.write(f"**Classes:** {', '.join(verifier.class_names)}")
-            st.write(f"**Test accuracy:** {float(meta.get('test_accuracy', 0)) * 100:.2f}%")
-            dataset_summary = meta.get("dataset_summary", {})
-            st.write(f"**Dataset images:** {dataset_summary.get('total_images', 'N/A')}")
-            st.write(f"**Confidence threshold:** {verifier.confidence_threshold * 100:.1f}%")
-
-        st.subheader("Choose image source")
-        input_mode = st.radio(
-            "How do you want to scan the fruit?",
-            ["📁 Upload Image", "🎥 Live Front Camera"],
-            horizontal=True,
-            label_visibility="collapsed",
-        )
-
-        image = None
-        source_caption = "Fruit image"
-
-        if input_mode == "📁 Upload Image":
-            st.markdown("### 📁 Upload Image")
-            uploaded = st.file_uploader(
-                "Choose a JPG, PNG, JPEG, or WebP image",
-                type=["jpg", "jpeg", "png", "webp"],
-                key="fruit_image",
-            )
-            if uploaded is not None:
-                try:
-                    image = Image.open(uploaded).convert("RGB")
-                    source_caption = "Uploaded image"
-                except Exception:
-                    st.error("Could not read this file as an image.")
-            else:
-                st.info("Upload a fruit image to begin verification.")
-
-        else:
-            st.markdown("### 🎥 Live Front Camera")
-            st.caption(
-                "Allow camera permission in your browser, place one fruit clearly in front of the camera, then capture a photo."
-            )
-            camera_photo = st.camera_input(
-                "Front camera",
-                key="front_camera",
-                help="On phones/tablets, your browser controls which physical camera is used. You can switch cameras from the browser/device camera controls when available.",
-            )
-            if camera_photo is not None:
-                try:
-                    image = Image.open(camera_photo).convert("RGB")
-                    source_caption = "Live camera capture"
-                except Exception:
-                    st.error("Could not read the captured camera image.")
-            else:
-                st.info("Open the camera and capture a fruit to begin verification.")
-
-        st.caption("Supported classes: Apple, Banana, Grape, Mango, and Strawberry.")
-
-        if image is not None:
-            show_prediction_result(image, verifier, source_caption)
+                    st.error("Training did not finish successfully. Check the log above.")
 
 with about_tab:
-    st.header("How FruitScan AI works")
+    st.header("ℹ️ About FruitScan Kids")
+    st.write(
+        "FruitScan Kids is an educational fruit-recognition project designed to help early-years learners connect real objects with simple science and everyday activities."
+    )
     st.markdown(
         """
-FruitScan AI supports two image sources:
+### Learning journey
 
-- **📁 Upload Image** — select a saved JPG, JPEG, PNG, or WebP image.
-- **🎥 Live Front Camera** — open the device camera in Streamlit and capture a fruit photo.
+**1. See it** — Upload a picture or use the camera.  
+**2. Name it** — FruitScan identifies the fruit.  
+**3. Say it** — Press the pronunciation button and repeat the word.  
+**4. Explore it** — Learn what the fruit and its seeds look like.  
+**5. Grow it** — Learn about weather, soil, water, sunlight, flowers, and fruit growth.  
+**6. Understand leaves** — Learn a simple idea of photosynthesis.  
+**7. Make something** — Try a small food, drink, or dessert activity with an adult.
 
-Both input methods use the same verification pipeline:
+### Fruits currently included
 
-1. **MobileNetV3-Small classifier** predicts Apple, Banana, Grape, Mango, or Strawberry.
-2. The picture is converted to a learned **feature embedding**.
-3. The feature embedding is compared with **dataset class centroids** created from the training images.
-4. A **confidence gate** rejects weak classifier predictions.
-5. A **similarity gate** rejects images that do not resemble the learned fruit profile.
-6. A **class-separation gate** rejects ambiguous images that look too similar to multiple classes.
-
-Only when all three verification gates pass does the app display **VERIFIED**. Otherwise it returns **UNKNOWN / NOT VERIFIED**.
+🍎 Apple · 🍌 Banana · 🍇 Grape · 🥭 Mango · 🍓 Strawberry
         """
     )
-    st.info(
-        "Camera selection is controlled by the browser/device. On phones and tablets, use the available camera-switch control if the browser opens the rear camera instead of the front camera."
+    st.warning(
+        "Food activities are educational examples for adult-supervised use. Adults should manage knives, blenders, heat, allergies, and age-appropriate choking safety."
     )
     st.info(
-        "This reduces forced misclassification, but no five-class image model can guarantee perfect detection of every possible non-fruit image."
+        "The AI classifier is a learning aid, not a perfect identification system. If FruitScan is unsure, it asks the learner to try another picture instead of forcing a fruit label."
     )
