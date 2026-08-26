@@ -33,7 +33,13 @@ class FruitVerifier:
         self.device = torch.device(
             device or ("cuda" if torch.cuda.is_available() else "cpu")
         )
-        checkpoint = torch.load(self.checkpoint_path, map_location=self.device, weights_only=False)
+        # weights_only=True prevents arbitrary Python object deserialization when
+        # a checkpoint is supplied through the Streamlit setup page.
+        checkpoint = torch.load(
+            self.checkpoint_path,
+            map_location=self.device,
+            weights_only=True,
+        )
         self.class_names = list(checkpoint["class_names"])
         self.image_size = int(checkpoint.get("image_size", 224))
         self.model = FruitClassifier(len(self.class_names), pretrained=False)
