@@ -9,7 +9,13 @@ import pandas as pd
 import streamlit as st
 from PIL import Image
 
-from camera_history import remember_camera_photo, selected_camera_image, show_camera_history
+from camera_history import (
+    remember_camera_photo,
+    selected_camera_id,
+    selected_camera_image,
+    show_camera_history,
+    update_camera_result,
+)
 from dataset_utils import save_summary, scan_dataset
 from education_ui import show_fruit_lesson, show_learning_browser
 from prepare_dataset import extract_dataset
@@ -57,9 +63,17 @@ def get_verifier():
         return None, str(exc)
 
 
-def show_prediction_result(image: Image.Image, verifier: FruitVerifier, source_caption: str) -> None:
+def show_prediction_result(
+    image: Image.Image,
+    verifier: FruitVerifier,
+    source_caption: str,
+    history_id: str | None = None,
+) -> None:
     with st.spinner("Scanning and identifying the fruit..."):
         result = verifier.predict(image)
+
+    if history_id is not None:
+        update_camera_result(history_id, result)
 
     left, right = st.columns([1, 1.25])
     with left:
@@ -146,6 +160,7 @@ with scan_tab:
 
         image = None
         source_caption = "Fruit image"
+        history_id = None
 
         if input_mode == "📁 Upload Image":
             uploaded = st.file_uploader(
@@ -165,7 +180,7 @@ with scan_tab:
         else:
             st.markdown("### 🎥 Live Front Camera")
             st.caption(
-                "Allow camera permission, hold one fruit clearly in front of the camera, then take a picture. Every camera photo is added to the temporary history below."
+                "Allow camera permission, hold one fruit clearly in front of the camera, then take a picture. Every camera photo is added to My Fruit Camera History."
             )
             camera_photo = st.camera_input(
                 "Take a fruit picture",
@@ -179,12 +194,12 @@ with scan_tab:
                 except Exception:
                     st.error("I could not save this camera picture to the session history.")
 
-            show_camera_history()
-
             try:
                 image, source_caption = selected_camera_image()
+                history_id = selected_camera_id()
             except Exception:
                 image = None
+                history_id = None
                 st.error("I could not reopen the selected camera picture.")
 
             if image is None:
@@ -193,7 +208,16 @@ with scan_tab:
         st.caption("FruitScan currently teaches: 🍎 Apple · 🍌 Banana · 🍇 Grape · 🥭 Mango · 🍓 Strawberry")
 
         if image is not None:
-            show_prediction_result(image, verifier, source_caption)
+            show_prediction_result(
+                image,
+                verifier,
+                source_caption,
+                history_id=history_id,
+            )
+
+        if input_mode == "🎥 Live Front Camera":
+            st.divider()
+            show_camera_history()
 
 with learn_tab:
     show_learning_browser()
@@ -331,7 +355,7 @@ with about_tab:
 **5. Grow it** — Learn about weather, soil, water, sunlight, flowers, and fruit growth.  
 **6. Understand leaves** — Learn a simple idea of photosynthesis.  
 **7. Make something** — Try a small food, drink, or dessert activity with an adult.  
-**8. Review it** — Camera History lets learners reopen photos taken during the current session.
+**8. Review it** — My Fruit Camera History lets learners reopen photos and their lessons during the current session.
 
 ### Fruits currently included
 
@@ -342,7 +366,7 @@ with about_tab:
         "Food activities are educational examples for adult-supervised use. Adults should manage knives, blenders, heat, allergies, and age-appropriate choking safety."
     )
     st.info(
-        "Camera History is temporary and session-only. It keeps the newest 12 camera photos while the current Streamlit session is active and does not save those photos to GitHub."
+        "Camera History is temporary and session-only. It keeps the newest 12 camera photos, their FruitScan result, and simple learning progress while the current Streamlit session is active. Photos are not saved to GitHub."
     )
     st.info(
         "The AI classifier is a learning aid, not a perfect identification system. If FruitScan is unsure, it asks the learner to try another picture instead of forcing a fruit label."
