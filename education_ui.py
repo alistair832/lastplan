@@ -114,20 +114,20 @@ def recipe_card(icon: str, title: str, recipe: dict) -> None:
         st.write(f"**{index}.** {step}")
 
 
-def show_quiz(fruit_name: str) -> None:
+def show_quiz(fruit_name: str, namespace: str) -> None:
     extra = get_learning_extra(fruit_name)
     quiz = extra["quiz"]
     st.markdown(f"### ⭐ {fruit_name} Mini Quiz")
     st.write("Choose one answer for each question. You can try again as many times as you like!")
 
-    with st.form(f"quiz_{fruit_name}"):
+    with st.form(f"quiz_{namespace}_{fruit_name}"):
         answers = []
         for index, item in enumerate(quiz, start=1):
             answer = st.radio(
                 f"{index}. {item['question']}",
                 item["options"],
                 index=None,
-                key=f"{fruit_name}_q_{index}",
+                key=f"{namespace}_{fruit_name}_q_{index}",
             )
             answers.append(answer)
         submitted = st.form_submit_button("🌟 Check my answers", use_container_width=True)
@@ -163,6 +163,7 @@ def show_fruit_lesson(fruit_name: str, heading: bool = True) -> None:
 
     info = FRUIT_EDUCATION[fruit_name]
     extra = get_learning_extra(fruit_name)
+    namespace = "learn" if heading else "scan"
 
     if heading:
         st.header(f"{info['emoji']} Let's Learn About {fruit_name}!")
@@ -240,7 +241,7 @@ def show_fruit_lesson(fruit_name: str, heading: bool = True) -> None:
         st.error(f"**Safety for {fruit_name}:** {info['safety']}")
 
     with quiz_tab:
-        show_quiz(fruit_name)
+        show_quiz(fruit_name, namespace)
 
 
 def show_learning_browser() -> None:
