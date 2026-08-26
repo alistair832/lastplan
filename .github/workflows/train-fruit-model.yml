@@ -1,0 +1,94 @@
+name: Train Fruit Verification Model
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/train-fruit-model.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install kagglehub
+
+      - name: Download public Kaggle dataset
+        id: dataset
+        shell: bash
+        run: |
+          DATASET_PATH=$(python - <<'PY'
+          import kagglehub
+          print(kagglehub.dataset_download('utkarshsaxenadn/fruits-classification'))
+          PY
+          )
+          echo "Dataset downloaded to: $DATASET_PATH"
+          echo "path=$DATASET_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Train and calibrate verifier
+        run: |
+          python train.py --data "${{ steps.dataset.outputs.path }}" --epochs 10 --warmup-epochs 3 --workers 2
+
+      - name: Verify generated model
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          import torch
+
+          model = Path('artifacts/fruit_classifier.pt')
+          metrics = Path('artifacts/metrics.json')
+          summary = Path('artifacts/dataset_summary.json')
+          assert model.exists() and model.stat().st_size > 1_000_000, 'trained model missing'
+          assert metrics.exists(), 'metrics missing'
+          assert summary.exists(), 'dataset summary missing'
+          data = json.loads(metrics.read_text())
+          print('Test accuracy:', data.get('test_accuracy'))
+          checkpoint = torch.load(model, map_location='cpu', weights_only=False)
+          assert checkpoint['class_names'] == ['Apple', 'Banana', 'Grape', 'Mango', 'Strawberry']
+          assert 'verification' in checkpoint
+          PY
+
+      - name: Commit trained model and metrics
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f artifacts/fruit_classifier.pt artifacts/metrics.json artifacts/dataset_summary.json
+          if git diff --cached --quiet; then
+            echo "No generated changes to commit."
+          else
+            git commit -m "Add trained fruit verifier [skip ci]"
+            git push origin HEAD:main
+          fi
+
+      - name: Upload model artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fruit-verifier
+          path: |
+            artifacts/fruit_classifier.pt
+            artifacts/metrics.json
+            artifacts/dataset_summary.json
+          retention-days: 30
