@@ -163,13 +163,11 @@ def show_child_result(
             st.markdown(f"# {emoji} {effective_label}")
             if newly_unlocked:
                 st.info("⭐ New fruit unlocked in your Collection Book!")
-                st.balloons()
 
             repeat_pronunciation_button(effective_label)
 
             if check_find_game(effective_label, scan_token):
                 st.success(f"🏆 You found the {emoji} {effective_label}! +2 stars!")
-                st.balloons()
 
             show_correction_controls(scan_token, effective_label, history_id)
         else:
@@ -200,7 +198,13 @@ def show_child_result(
     )
 
     show_quick_recipe_mode(effective_label)
-    show_picture_quiz(effective_label, namespace=scan_token[:16])
+
+    st.markdown("## 🎮 Quiz & Games")
+    quiz_tab, find_tab = st.tabs(["🖼️ Picture Quiz", "🎯 Find a Fruit"])
+    with quiz_tab:
+        show_picture_quiz(effective_label, namespace=scan_token[:16])
+    with find_tab:
+        show_random_find_game()
 
     with st.expander("📚 Explore more about this fruit", expanded=False):
         show_fruit_lesson(effective_label, heading=False)
@@ -228,9 +232,6 @@ with scan_tab:
 
         show_progress_banner()
         show_collection_book()
-        st.divider()
-
-        show_random_find_game()
         st.divider()
 
         st.header("📷 Scan a Fruit")
@@ -475,9 +476,9 @@ with about_tab:
 **4. See it** — Learn through fruit, inside, seed, plant, and food pictures.  
 **5. Grow it** — Follow the animated growth steps.  
 **6. Make it** — Try simple food, drink, and dessert ideas with an adult.  
-**7. Play it** — Answer picture quizzes and the Find a Fruit game.  
+**7. Play it** — Answer the Picture Quiz, then try Find a Fruit from the same Quiz & Games area.  
 **8. Collect it** — Unlock fruits in the Collection Book.  
-**9. Earn it** — Collect stars and trophies.  
+**9. Earn it** — Collect stars and trophies without confetti animations.  
 **10. Review it** — Reopen earlier camera pictures from Scan History.
         """
     )
