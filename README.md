@@ -1,22 +1,22 @@
 # FruitScan AI — Fruit Classification + Dataset Verification
 
-FruitScan AI classifies uploaded images as **Apple, Banana, Grape, Mango, or Strawberry** and then performs an independent dataset-reference check before marking the result as verified.
+FruitScan AI classifies uploaded images as **Apple, Banana, Grape, Mango, or Strawberry** and then independently verifies the result against the learned dataset profile.
 
 Dataset: https://www.kaggle.com/datasets/utkarshsaxenadn/fruits-classification
 
-## Why this version is better
+## Verification design
 
-A normal five-class classifier always chooses one of its five labels, even when someone uploads an unrelated picture. FruitScan AI therefore uses three verification gates:
+A normal five-class classifier always chooses one of its five labels. FruitScan AI adds three gates before a result is accepted:
 
 1. **Classifier confidence** — MobileNetV3-Small must be confident enough.
-2. **Dataset similarity** — the uploaded image embedding must resemble the learned profile of the predicted fruit.
-3. **Class separation** — the predicted fruit must be clearly more similar than the other fruit classes.
+2. **Dataset similarity** — the uploaded image embedding must resemble the learned centroid of the predicted fruit.
+3. **Class separation** — the predicted fruit must be sufficiently more similar than competing fruit classes.
 
-If any gate fails, Streamlit displays **UNKNOWN / NOT VERIFIED** instead of forcing an incorrect fruit label.
+If any gate fails, Streamlit displays **UNKNOWN / NOT VERIFIED** instead of forcing a fruit label.
 
-## Dataset verified from the supplied ZIP
+## Dataset scan
 
-The supplied Kaggle ZIP was scanned successfully:
+The supplied Kaggle ZIP was verified successfully:
 
 | Split | Apple | Banana | Grape | Mango | Strawberry | Total |
 |---|---:|---:|---:|---:|---:|---:|
@@ -25,28 +25,31 @@ The supplied Kaggle ZIP was scanned successfully:
 | Test | 20 | 20 | 20 | 20 | 20 | 100 |
 | **Total** | **2,000** | **2,000** | **2,000** | **2,000** | **2,000** | **10,000** |
 
-All **10,000 images were readable and 0 corrupt images were found** during the full integrity scan.
+All **10,000 images were readable and 0 corrupt images were found** during the integrity scan.
 
 ## Project files
 
 ```text
 lastplan/
-├── app.py                 # Streamlit upload and result UI
+├── app.py                 # Complete Streamlit UI
 ├── prepare_dataset.py     # Extract ZIP + verify dataset images
 ├── dataset_utils.py       # Dataset discovery and scan helpers
 ├── model.py               # MobileNetV3-Small classifier
-├── train.py               # Training + verification calibration
+├── train.py               # Training + verifier calibration
 ├── verifier.py            # Confidence/similarity/margin verification
-├── predict.py             # Command-line verification
+├── predict.py             # Command-line prediction
 ├── requirements.txt
+├── .streamlit/config.toml
 ├── .gitignore
-├── data/                  # generated locally, not committed
-└── artifacts/             # generated training outputs
+├── data/                  # generated locally
+└── artifacts/             # generated locally
 ```
 
-## 1. Install
+# Easiest method: do everything from Streamlit
 
-Python 3.11+ is recommended.
+## 1. Install and start Streamlit locally
+
+Python **3.12** is recommended for the same environment used by Streamlit Community Cloud.
 
 ```bash
 python -m venv .venv
@@ -57,6 +60,7 @@ Windows:
 ```bash
 .venv\Scripts\activate
 pip install -r requirements.txt
+streamlit run app.py
 ```
 
 macOS/Linux:
@@ -64,66 +68,62 @@ macOS/Linux:
 ```bash
 source .venv/bin/activate
 pip install -r requirements.txt
-```
-
-## 2. Extract and scan the ZIP you already downloaded
-
-Put the Kaggle ZIP in the project folder and run:
-
-```bash
-python prepare_dataset.py --zip "archive (1)(1).zip"
-```
-
-The script automatically locates the nested dataset, copies the train/valid/test folders into `data/`, checks the images, and writes a dataset summary to `artifacts/dataset_summary.json`.
-
-## 3. Train the classifier and verifier
-
-```bash
-python train.py --data data --epochs 12
-```
-
-The training process uses MobileNetV3-Small transfer learning. It first trains the classification head and then fine-tunes the last feature blocks. After training, it scans the learned embeddings and calibrates verification thresholds using the validation set.
-
-The main generated file is:
-
-```text
-artifacts/fruit_classifier.pt
-```
-
-This single checkpoint stores:
-
-- trained classifier weights
-- class names
-- dataset centroid embeddings
-- per-class similarity thresholds
-- classifier confidence threshold
-- class-separation margin threshold
-- validation/test metrics
-
-## 4. Run Streamlit
-
-```bash
 streamlit run app.py
 ```
 
-Upload a JPG, PNG, or WebP image. The page displays:
+The browser will open FruitScan AI.
+
+## 2. Open the Model Setup tab
+
+The Streamlit interface now supports the setup workflow directly.
+
+### Option A — install an existing model
+
+Upload a trusted `fruit_classifier.pt` file generated by this project and click **Install uploaded model**.
+
+### Option B — create the model from the Kaggle ZIP
+
+1. Upload the downloaded Fruits Classification ZIP.
+2. Click **Extract and scan dataset**.
+3. Confirm the 10,000-image scan.
+4. Select the number of training epochs.
+5. Click **Train classifier + verifier**.
+6. When training finishes, Streamlit automatically enables the Fruit Verification tab.
+7. Use **Download trained model** to save `fruit_classifier.pt`.
+
+Training is much faster on a computer with a GPU. Full training on Streamlit Community Cloud may be slow because Community Cloud has limited CPU and RAM.
+
+## 3. Verify fruit pictures
+
+Open **Fruit Verification** and upload a JPG, JPEG, PNG, or WebP image.
+
+The page displays:
 
 - **VERIFIED fruit** or **UNKNOWN / NOT VERIFIED**
 - classifier confidence
 - dataset similarity
 - verification score
 - class-separation margin
-- reason for rejection when verification fails
+- reason for rejection
 - probabilities for all five fruits
-- dataset scan summary and test accuracy
 
-## 5. Verify one image from the terminal
+# Deploy on Streamlit Community Cloud
 
-```bash
-python predict.py "path/to/fruit.jpg"
-```
+1. Go to `share.streamlit.io` and sign in with GitHub.
+2. Click **Create app**.
+3. Select repository: `alistair832/lastplan`.
+4. Select branch: `main`.
+5. Set the entrypoint file to `app.py`.
+6. Open **Advanced settings** and choose **Python 3.12**.
+7. Click **Deploy**.
 
-## Verification logic
+`requirements.txt` and `.streamlit/config.toml` are already in the repository, so Community Cloud can install the Python dependencies and use the project configuration automatically.
+
+### Important deployment note
+
+The trained checkpoint is intentionally excluded from Git by default. Therefore, a new cloud deployment initially opens the **Model Setup** tab. For a permanent public deployment, train the model locally, then store the resulting `artifacts/fruit_classifier.pt` in an approved model-storage location or commit it if its size fits your GitHub policy.
+
+## Verification flow
 
 ```text
 Uploaded Image
@@ -131,28 +131,22 @@ Uploaded Image
       v
 MobileNetV3 Classifier
       |
-      +---- Confidence threshold ---- fail ---> UNKNOWN
+      +---- Confidence gate ---- fail ---> UNKNOWN
       |
       v
 Feature Embedding
       |
       v
-Compare with 5 dataset centroids
+Compare with dataset centroids
       |
-      +---- Similarity threshold ---- fail ---> UNKNOWN
+      +---- Similarity gate ---- fail ---> UNKNOWN
       |
-      +---- Separation margin ------- fail ---> UNKNOWN
+      +---- Separation gate ---- fail ---> UNKNOWN
       |
       v
 VERIFIED FRUIT
 ```
 
-This approach is more reliable than simply displaying the highest softmax prediction because uncertain and out-of-distribution images can be rejected.
-
 ## Important limitation
 
-The verifier substantially reduces forced misclassification, but it cannot mathematically prove that every possible uploaded image is or is not a fruit. It is still a machine-learning system trained around five known classes. The confidence, similarity, and class-margin gates provide conservative **unknown-image rejection**.
-
-## GitHub note
-
-The 10,000 dataset images and downloaded ZIP are intentionally excluded from GitHub. They remain local. The trained `.pt` file is also ignored by default because model artifacts may be large. For deployment, train locally and then either store the checkpoint in an approved model-storage location or remove the model ignore rule and commit the checkpoint if its size fits your repository policy.
+The verifier reduces forced misclassification but cannot prove that every possible image is or is not a fruit. It is a machine-learning system trained around five known classes, with conservative unknown-image rejection.
