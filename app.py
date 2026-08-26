@@ -19,7 +19,6 @@ from camera_history import (
 )
 from child_experience import (
     FRUIT_EMOJI,
-    auto_announce_fruit,
     check_find_game,
     child_styles,
     corrected_label,
@@ -49,7 +48,7 @@ st.set_page_config(page_title="FruitScan Kids", page_icon="🍓", layout="wide")
 child_styles()
 st.title("🍓 FruitScan Kids")
 st.caption(
-    "Take a fruit picture, hear its name, collect it, learn how it grows, play a quiz, and earn stars!"
+    "Take a fruit picture, collect it, learn how it grows, practise its name, play a quiz, and earn stars!"
 )
 
 
@@ -157,13 +156,13 @@ def show_child_result(
         if effective_label:
             emoji = FRUIT_EMOJI[effective_label]
             newly_unlocked = unlock_fruit(effective_label, scan_token)
-            auto_announce_fruit(effective_label, f"{scan_token}:{effective_label}")
 
             st.success(f"🎉 This is a {effective_label}! {emoji}")
             st.markdown(f"# {emoji} {effective_label}")
             if newly_unlocked:
                 st.info("⭐ New fruit unlocked in your Collection Book!")
 
+            st.caption("Tap the button below if you want to hear the fruit name.")
             repeat_pronunciation_button(effective_label)
 
             if check_find_game(effective_label, scan_token):
@@ -471,8 +470,8 @@ with about_tab:
 ### Child learning journey
 
 **1. Scan it** — Take a photo or choose a picture.  
-**2. Hear it** — FruitScan automatically says the fruit name.  
-**3. Say it** — Press **Say It Again** to practise pronunciation.  
+**2. Name it** — FruitScan shows the recognised fruit name.  
+**3. Say it** — Press **Say It Again** when you want to hear and practise pronunciation.  
 **4. See it** — Learn through fruit, inside, seed, plant, and food pictures.  
 **5. Grow it** — Follow the animated growth steps.  
 **6. Make it** — Try simple food, drink, and dessert ideas with an adult.  
