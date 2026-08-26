@@ -9,7 +9,7 @@ from PIL import Image
 
 from verifier import FruitVerifier
 
-CHECKPOINT = Path('artifacts/fruit_verifier.pt')
+CHECKPOINT = Path('artifacts/fruit_classifier.pt')
 SUMMARY = Path('artifacts/dataset_summary.json')
 
 st.set_page_config(page_title='FruitScan AI', page_icon='🍓', layout='wide')
@@ -22,7 +22,7 @@ def load_verifier():
 
 if not CHECKPOINT.exists():
     st.error('The trained verifier is not available yet.')
-    st.code('python prepare_dataset.py --zip "archive (1)(1).zip"\npython train.py --data data --epochs 6\nstreamlit run app.py')
+    st.code('python prepare_dataset.py --zip "archive (1)(1).zip"\npython train.py --data data --epochs 12\nstreamlit run app.py')
     st.stop()
 
 verifier = load_verifier()
@@ -33,7 +33,8 @@ with st.sidebar:
     meta = verifier.metadata
     st.write(f"**Classes:** {', '.join(verifier.class_names)}")
     st.write(f"**Test accuracy:** {float(meta.get('test_accuracy', 0))*100:.2f}%")
-    st.write(f"**Dataset images:** {meta.get('dataset_images', 'N/A')}")
+    dataset_summary = meta.get('dataset_summary', {})
+    st.write(f"**Dataset images:** {dataset_summary.get('total_images', 'N/A')}")
     st.write(f"**Confidence threshold:** {verifier.confidence_threshold*100:.1f}%")
     if SUMMARY.exists():
         summary = json.loads(SUMMARY.read_text(encoding='utf-8'))
