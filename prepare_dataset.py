@@ -1,36 +1,54 @@
 from __future__ import annotations
 
 import argparse
+import shutil
+import tempfile
 import zipfile
 from pathlib import Path
 
-from dataset_utils import dataset_counts, find_dataset_root
+from dataset_utils import discover_dataset_root, save_summary, scan_dataset
+
+
+def extract_dataset(zip_path: Path, output_dir: Path) -> Path:
+    zip_path = zip_path.expanduser().resolve()
+    output_dir = output_dir.expanduser().resolve()
+    if not zip_path.exists():
+        raise FileNotFoundError(f"ZIP file not found: {zip_path}")
+
+    with tempfile.TemporaryDirectory(prefix="fruit_dataset_") as temp_dir:
+        temp_path = Path(temp_dir)
+        with zipfile.ZipFile(zip_path) as archive:
+            archive.extractall(temp_path)
+        source_root = discover_dataset_root(temp_path)
+
+        if output_dir.exists():
+            shutil.rmtree(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        for split in ("train", "valid", "test"):
+            shutil.copytree(source_root / split, output_dir / split)
+    return output_dir
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Extract the Fruits Classification Kaggle ZIP.")
-    parser.add_argument("--zip", required=True, dest="zip_path", help="Path to the downloaded Kaggle ZIP file")
-    parser.add_argument("--output", default="data", help="Extraction directory (default: data)")
+    parser = argparse.ArgumentParser(description="Extract and validate the fruits dataset.")
+    parser.add_argument("--zip", required=True, type=Path, help="Path to the downloaded Kaggle ZIP.")
+    parser.add_argument("--output", default=Path("data"), type=Path, help="Destination dataset folder.")
+    parser.add_argument(
+        "--skip-image-check",
+        action="store_true",
+        help="Only count files instead of opening every image for integrity checking.",
+    )
     args = parser.parse_args()
 
-    zip_path = Path(args.zip_path).expanduser().resolve()
-    output = Path(args.output).expanduser().resolve()
+    root = extract_dataset(args.zip, args.output)
+    summary = scan_dataset(root, verify_images=not args.skip_image_check)
+    save_summary(summary, Path("artifacts/dataset_summary.json"))
 
-    if not zip_path.is_file():
-        raise FileNotFoundError(f"ZIP file not found: {zip_path}")
-
-    output.mkdir(parents=True, exist_ok=True)
-    with zipfile.ZipFile(zip_path) as archive:
-        archive.extractall(output)
-
-    root = find_dataset_root(output)
-    counts = dataset_counts(root)
-
-    print(f"Dataset ready at: {root}")
-    for split, split_counts in counts.items():
-        total = sum(split_counts.values())
-        details = ", ".join(f"{name}={count}" for name, count in split_counts.items())
-        print(f"{split:>5}: {total:>5} images | {details}")
+    print(f"Dataset ready: {root}")
+    print(f"Classes: {', '.join(summary['classes'])}")
+    print(f"Total images: {summary['total_images']}")
+    for split, counts in summary["splits"].items():
+        print(f"{split}: {sum(counts.values())} images -> {counts}")
 
 
 if __name__ == "__main__":
