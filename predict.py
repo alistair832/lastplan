@@ -1,37 +1,35 @@
 from __future__ import annotations
 
 import argparse
-import json
 from pathlib import Path
 
-import numpy as np
 from PIL import Image
-from tensorflow import keras
 
-IMAGE_SIZE = (224, 224)
+from verifier import FruitVerifier
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Predict the fruit class for one image.")
-    parser.add_argument("image", help="Path to an image")
-    parser.add_argument("--model", default="models/fruit_classifier.keras")
-    parser.add_argument("--classes", default="models/class_names.json")
+    parser = argparse.ArgumentParser(description="Classify and verify one fruit image.")
+    parser.add_argument("image", type=Path)
+    parser.add_argument("--model", type=Path, default=Path("artifacts/fruit_classifier.pt"))
     args = parser.parse_args()
 
-    model = keras.models.load_model(args.model)
-    names = json.loads(Path(args.classes).read_text(encoding="utf-8"))
+    verifier = FruitVerifier(args.model)
+    with Image.open(args.image) as image:
+        result = verifier.predict(image)
 
-    image = Image.open(args.image).convert("RGB").resize(IMAGE_SIZE)
-    batch = np.expand_dims(np.asarray(image, dtype=np.float32), axis=0)
-    probabilities = model.predict(batch, verbose=0)[0]
-
-    best = int(np.argmax(probabilities))
-    print(f"Prediction: {names[best]}")
-    print(f"Confidence: {probabilities[best] * 100:.2f}%")
-
-    print("\nAll classes:")
-    for index in np.argsort(probabilities)[::-1]:
-        print(f"  {names[int(index)]:<12} {probabilities[int(index)] * 100:6.2f}%")
+    print(f"Result: {result.label}")
+    print(f"Verified: {result.verified}")
+    print(f"Confidence: {result.confidence:.2%}")
+    print(f"Dataset similarity: {result.dataset_similarity:.2%}")
+    print(f"Verification score: {result.verification_score:.1f}/100")
+    print("Top probabilities:")
+    for name, probability in sorted(result.probabilities.items(), key=lambda item: item[1], reverse=True):
+        print(f"  {name:12s} {probability:.2%}")
+    if result.reasons:
+        print("Rejected because:")
+        for reason in result.reasons:
+            print(f"  - {reason}")
 
 
 if __name__ == "__main__":
