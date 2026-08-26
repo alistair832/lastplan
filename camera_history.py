@@ -84,6 +84,10 @@ def update_camera_result(photo_id: str | None, result) -> None:
         if item["id"] != photo_id:
             continue
 
+        existing = item.get("result") or {}
+        if existing.get("corrected"):
+            return
+
         item["result"] = {
             "verified": bool(result.verified),
             "label": result.label if result.verified else "Unknown / Not Verified",
@@ -115,6 +119,8 @@ def _result_caption(item: dict) -> tuple[str, str]:
         label = result["label"]
         emoji = FRUIT_EMOJI.get(label, "🍓")
         title = f"{emoji} {label}"
+        if result.get("corrected"):
+            return title, "✅ Corrected by the learner"
         detail = f"Confidence: {result['confidence'] * 100:.1f}%"
         return title, detail
 
@@ -166,8 +172,6 @@ def show_camera_history() -> None:
             use_container_width=True,
             key="camera_history_clear",
         ):
-            # Keep the seen hashes so the still-active camera_input value is not
-            # immediately re-added on the rerun after clearing.
             st.session_state.camera_history = []
             st.session_state.camera_history_selected_id = None
             st.rerun()
