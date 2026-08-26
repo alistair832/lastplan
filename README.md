@@ -1,39 +1,52 @@
-# Fruit Classification Project
+# FruitScan AI — Fruit Classification + Dataset Verification
 
-A complete image-classification project built around the Kaggle **Fruits Classification** dataset.
+FruitScan AI classifies uploaded images as **Apple, Banana, Grape, Mango, or Strawberry** and then performs an independent dataset-reference check before marking the result as verified.
 
 Dataset: https://www.kaggle.com/datasets/utkarshsaxenadn/fruits-classification
 
-## Dataset used
+## Why this version is better
 
-The provided dataset contains **10,000 fruit images** in five classes:
+A normal five-class classifier always chooses one of its five labels, even when someone uploads an unrelated picture. FruitScan AI therefore uses three verification gates:
 
-- Apple
-- Banana
-- Grape
-- Mango
-- Strawberry
+1. **Classifier confidence** — MobileNetV3-Small must be confident enough.
+2. **Dataset similarity** — the uploaded image embedding must resemble the learned profile of the predicted fruit.
+3. **Class separation** — the predicted fruit must be clearly more similar than the other fruit classes.
 
-The downloaded ZIP is already split into:
+If any gate fails, Streamlit displays **UNKNOWN / NOT VERIFIED** instead of forcing an incorrect fruit label.
 
-| Split | Images | Per class |
-|---|---:|---:|
-| Train | 9,700 | 1,940 |
-| Validation | 200 | 40 |
-| Test | 100 | 20 |
+## Dataset verified from the supplied ZIP
 
-The dataset itself is intentionally not committed to GitHub. Download it from Kaggle and keep it locally.
+The supplied Kaggle ZIP was scanned successfully:
 
-## What this project includes
+| Split | Apple | Banana | Grape | Mango | Strawberry | Total |
+|---|---:|---:|---:|---:|---:|---:|
+| Train | 1,940 | 1,940 | 1,940 | 1,940 | 1,940 | 9,700 |
+| Validation | 40 | 40 | 40 | 40 | 40 | 200 |
+| Test | 20 | 20 | 20 | 20 | 20 | 100 |
+| **Total** | **2,000** | **2,000** | **2,000** | **2,000** | **2,000** | **10,000** |
 
-- `prepare_dataset.py` — extracts the already-downloaded Kaggle ZIP and finds the dataset root automatically.
-- `dataset_utils.py` — validates the dataset structure and counts images.
-- `train.py` — trains a MobileNetV2 transfer-learning classifier.
-- `predict.py` — predicts one local image from the command line.
-- `app.py` — Streamlit web interface for uploading and classifying fruit images.
-- `requirements.txt` — Python dependencies.
+All **10,000 images were readable and 0 corrupt images were found** during the full integrity scan.
 
-## 1. Create a virtual environment
+## Project files
+
+```text
+lastplan/
+├── app.py                 # Streamlit upload and result UI
+├── prepare_dataset.py     # Extract ZIP + verify dataset images
+├── dataset_utils.py       # Dataset discovery and scan helpers
+├── model.py               # MobileNetV3-Small classifier
+├── train.py               # Training + verification calibration
+├── verifier.py            # Confidence/similarity/margin verification
+├── predict.py             # Command-line verification
+├── requirements.txt
+├── .gitignore
+├── data/                  # generated locally, not committed
+└── artifacts/             # generated training outputs
+```
+
+## 1. Install
+
+Python 3.11+ is recommended.
 
 ```bash
 python -m venv .venv
@@ -43,91 +56,103 @@ Windows:
 
 ```bash
 .venv\Scripts\activate
+pip install -r requirements.txt
 ```
 
 macOS/Linux:
 
 ```bash
 source .venv/bin/activate
-```
-
-Install dependencies:
-
-```bash
 pip install -r requirements.txt
 ```
 
-## 2. Extract the ZIP you already downloaded
+## 2. Extract and scan the ZIP you already downloaded
 
-Example:
+Put the Kaggle ZIP in the project folder and run:
 
 ```bash
 python prepare_dataset.py --zip "archive (1)(1).zip"
 ```
 
-By default the files are extracted under `data/`. The script automatically finds the nested `Fruits Classification` directory and confirms the train/valid/test counts.
+The script automatically locates the nested dataset, copies the train/valid/test folders into `data/`, checks the images, and writes a dataset summary to `artifacts/dataset_summary.json`.
 
-If your dataset is already extracted, you can skip this step.
-
-## 3. Train the model
+## 3. Train the classifier and verifier
 
 ```bash
-python train.py --data data --epochs 8
+python train.py --data data --epochs 12
 ```
 
-The best model is saved as:
+The training process uses MobileNetV3-Small transfer learning. It first trains the classification head and then fine-tunes the last feature blocks. After training, it scans the learned embeddings and calibrates verification thresholds using the validation set.
+
+The main generated file is:
 
 ```text
-models/fruit_classifier.keras
+artifacts/fruit_classifier.pt
 ```
 
-The detected class order is saved as:
+This single checkpoint stores:
 
-```text
-models/class_names.json
-```
+- trained classifier weights
+- class names
+- dataset centroid embeddings
+- per-class similarity thresholds
+- classifier confidence threshold
+- class-separation margin threshold
+- validation/test metrics
 
-## 4. Predict one image
-
-```bash
-python predict.py "path/to/fruit-image.jpg"
-```
-
-## 5. Run the web application
+## 4. Run Streamlit
 
 ```bash
 streamlit run app.py
 ```
 
-Open the local Streamlit address shown in the terminal, upload a fruit image, and the app will display the predicted class and confidence scores.
+Upload a JPG, PNG, or WebP image. The page displays:
 
-## Model design
+- **VERIFIED fruit** or **UNKNOWN / NOT VERIFIED**
+- classifier confidence
+- dataset similarity
+- verification score
+- class-separation margin
+- reason for rejection when verification fails
+- probabilities for all five fruits
+- dataset scan summary and test accuracy
 
-The project uses **MobileNetV2 transfer learning** with ImageNet weights. The pretrained feature extractor is frozen while a new classification head learns the five fruit classes. Basic image augmentation is applied during training to improve generalization.
+## 5. Verify one image from the terminal
 
-## Project structure
-
-```text
-lastplan/
-├── app.py
-├── dataset_utils.py
-├── prepare_dataset.py
-├── predict.py
-├── train.py
-├── requirements.txt
-├── .gitignore
-├── data/                  # local only; ignored by Git
-│   └── Fruits Classification/
-│       ├── train/
-│       ├── valid/
-│       └── test/
-└── models/
-    ├── fruit_classifier.keras   # generated after training
-    └── class_names.json
+```bash
+python predict.py "path/to/fruit.jpg"
 ```
 
-## Notes
+## Verification logic
 
-- Do not upload the 10,000 dataset images to this repository.
-- Training requires TensorFlow and may be much faster with a supported GPU.
-- Run `train.py` before using `predict.py` or `app.py`.
+```text
+Uploaded Image
+      |
+      v
+MobileNetV3 Classifier
+      |
+      +---- Confidence threshold ---- fail ---> UNKNOWN
+      |
+      v
+Feature Embedding
+      |
+      v
+Compare with 5 dataset centroids
+      |
+      +---- Similarity threshold ---- fail ---> UNKNOWN
+      |
+      +---- Separation margin ------- fail ---> UNKNOWN
+      |
+      v
+VERIFIED FRUIT
+```
+
+This approach is more reliable than simply displaying the highest softmax prediction because uncertain and out-of-distribution images can be rejected.
+
+## Important limitation
+
+The verifier substantially reduces forced misclassification, but it cannot mathematically prove that every possible uploaded image is or is not a fruit. It is still a machine-learning system trained around five known classes. The confidence, similarity, and class-margin gates provide conservative **unknown-image rejection**.
+
+## GitHub note
+
+The 10,000 dataset images and downloaded ZIP are intentionally excluded from GitHub. They remain local. The trained `.pt` file is also ignored by default because model artifacts may be large. For deployment, train locally and then either store the checkpoint in an approved model-storage location or remove the model ignore rule and commit the checkpoint if its size fits your repository policy.
