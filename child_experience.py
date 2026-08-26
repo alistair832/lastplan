@@ -18,6 +18,50 @@ FRUIT_EMOJI = {
     "Strawberry": "🍓",
 }
 
+
+def _pexels_photo(photo_id: int) -> str:
+    return (
+        f"https://images.pexels.com/photos/{photo_id}/pexels-photo-{photo_id}.jpeg"
+        "?auto=compress&cs=tinysrgb&w=900&h=600&fit=crop"
+    )
+
+
+FRUIT_PHOTOS = {
+    "Apple": _pexels_photo(7156064),
+    "Banana": _pexels_photo(1166648),
+    "Grape": _pexels_photo(708777),
+    "Mango": _pexels_photo(7156058),
+    "Strawberry": _pexels_photo(934056),
+}
+
+RECIPE_PHOTOS = {
+    "Apple": {
+        "food": _pexels_photo(6769478),
+        "drink": _pexels_photo(11789746),
+        "dessert": _pexels_photo(7994282),
+    },
+    "Banana": {
+        "food": _pexels_photo(6823302),
+        "drink": _pexels_photo(4051764),
+        "dessert": _pexels_photo(15860793),
+    },
+    "Grape": {
+        "food": _pexels_photo(6769478),
+        "drink": _pexels_photo(14064559),
+        "dessert": _pexels_photo(7994282),
+    },
+    "Mango": {
+        "food": _pexels_photo(34122326),
+        "drink": _pexels_photo(10047619),
+        "dessert": _pexels_photo(37299594),
+    },
+    "Strawberry": {
+        "food": _pexels_photo(2424832),
+        "drink": _pexels_photo(5338141),
+        "dessert": _pexels_photo(34487793),
+    },
+}
+
 PICTURE_CARDS = {
     "Apple": [("🍎", "Fruit"), ("⚪", "White inside + core"), ("🌰", "Small brown seeds"), ("🌳", "Apple tree"), ("🥣", "Apple snack")],
     "Banana": [("🍌", "Fruit"), ("🟡", "Soft pale inside"), ("•••", "Tiny seed traces"), ("🌿", "Banana plant"), ("🥤", "Banana smoothie")],
@@ -230,13 +274,26 @@ def show_quick_recipe_mode(fruit_name: str) -> None:
     info = FRUIT_EDUCATION[fruit_name]
     st.markdown(f"### 👩‍🍳 What can we make with {fruit_name.lower()}?")
     st.warning("👨‍👩‍👧 **Ask an adult to help you!** Adults handle cutting, blending, heat, allergies, and choking safety.")
-    recipes = [("🥪", "Food", info["food"]), ("🥤", "Drink", info["drink"]), ("🍨", "Dessert", info["dessert"])]
+
+    recipes = [
+        ("🥪", "Food", "food", info["food"]),
+        ("🥤", "Drink", "drink", info["drink"]),
+        ("🍨", "Dessert", "dessert", info["dessert"]),
+    ]
     cols = st.columns(3)
-    for col, (icon, kind, recipe) in zip(cols, recipes):
+    for col, (icon, kind, photo_key, recipe) in zip(cols, recipes):
         with col:
-            st.markdown(f"## {icon}")
-            st.markdown(f"**{kind}: {recipe['name']}**")
-            st.caption(" → ".join(recipe["steps"][:3]))
+            st.image(
+                RECIPE_PHOTOS[fruit_name][photo_key],
+                use_container_width=True,
+            )
+            st.markdown(f"### {icon} {kind}")
+            st.markdown(f"**{recipe['name']}**")
+            with st.expander("👩‍🍳 See the easy steps", expanded=False):
+                for index, step in enumerate(recipe["steps"], start=1):
+                    st.write(f"**{index}.** {step}")
+
+    st.caption("📷 Example learning photos — the recipe you make may look a little different.")
 
 
 def show_picture_quiz(fruit_name: str, namespace: str) -> None:
@@ -246,18 +303,29 @@ def show_picture_quiz(fruit_name: str, namespace: str) -> None:
     rnd = random.Random(f"{namespace}:{fruit_name}")
     choices = [fruit_name] + rnd.sample(distractors, 2)
     rnd.shuffle(choices)
+
     st.markdown(f"### 🎮 Which one is the {fruit_name.lower()}?")
-    st.write("Tap the correct fruit picture.")
+    st.write("Look at the three photos and tap the correct picture.")
+
     cols = st.columns(3)
-    for col, choice in zip(cols, choices):
+    for position, (col, choice) in enumerate(zip(cols, choices), start=1):
         with col:
-            if st.button(f"{FRUIT_EMOJI[choice]}  {choice}", key=f"pic_quiz_{namespace}_{choice}", use_container_width=True):
+            st.image(
+                FRUIT_PHOTOS[choice],
+                use_container_width=True,
+            )
+            st.caption(f"Picture {position}")
+            if st.button(
+                "👆 Choose this picture",
+                key=f"pic_quiz_{namespace}_{choice}",
+                use_container_width=True,
+            ):
                 if choice == fruit_name:
                     award_star(f"quiz:{namespace}:{fruit_name}", 1)
-                    st.success("⭐ Correct! Great job!")
+                    st.success(f"⭐ Correct! That is the {FRUIT_EMOJI[fruit_name]} {fruit_name}!")
                     st.balloons()
                 else:
-                    st.info(f"Good try! Look for the {FRUIT_EMOJI[fruit_name]} {fruit_name}.")
+                    st.info(f"Good try! Look again for the {FRUIT_EMOJI[fruit_name]} {fruit_name}.")
 
 
 def show_random_find_game() -> None:
