@@ -21,7 +21,7 @@ UPLOAD_DIR = Path("artifacts/uploads")
 st.set_page_config(page_title="FruitScan AI", page_icon="🍓", layout="wide")
 st.title("🍓 FruitScan AI")
 st.caption(
-    "Upload a fruit image, classify it, and verify the result against the learned dataset profile."
+    "Upload a fruit image or use the live camera, classify it, and verify the result against the learned dataset profile."
 )
 
 
@@ -53,6 +53,52 @@ def get_verifier():
         return load_verifier(CHECKPOINT.stat().st_mtime), None
     except Exception as exc:
         return None, str(exc)
+
+
+def show_prediction_result(image: Image.Image, verifier: FruitVerifier, source_caption: str) -> None:
+    with st.spinner("Scanning and verifying image..."):
+        result = verifier.predict(image)
+
+    left, right = st.columns([1, 1.25])
+    with left:
+        st.image(image, caption=source_caption, use_container_width=True)
+
+    with right:
+        if result.verified:
+            st.success(f"✅ VERIFIED: {result.label}")
+            st.subheader(result.label)
+        else:
+            st.warning("⚠️ UNKNOWN / NOT VERIFIED")
+            st.subheader("The system rejected this image")
+
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Classifier confidence", f"{result.confidence * 100:.2f}%")
+        c2.metric("Dataset similarity", f"{result.dataset_similarity * 100:.2f}%")
+        c3.metric("Verification score", f"{result.verification_score:.1f}%")
+        st.metric("Class separation margin", f"{result.class_margin * 100:.2f}%")
+
+        if result.reasons:
+            st.write("**Why it was rejected:**")
+            for reason in result.reasons:
+                st.write(f"- {reason}")
+
+    st.divider()
+    st.subheader("All fruit probabilities")
+    prob_df = pd.DataFrame(
+        [
+            {"Fruit": name, "Probability": value}
+            for name, value in result.probabilities.items()
+        ]
+    ).sort_values("Probability", ascending=False)
+    prob_df["Probability %"] = prob_df["Probability"].map(
+        lambda x: f"{x * 100:.2f}%"
+    )
+    st.dataframe(
+        prob_df[["Fruit", "Probability %"]],
+        hide_index=True,
+        use_container_width=True,
+    )
+    st.bar_chart(prob_df.set_index("Fruit")["Probability"])
 
 
 predict_tab, setup_tab, about_tab = st.tabs(
@@ -195,6 +241,7 @@ with predict_tab:
             st.header("System status")
             st.success("Classifier ready")
             st.success("Dataset verifier ready")
+            st.success("Camera input ready")
             meta = verifier.metadata
             st.write(f"**Classes:** {', '.join(verifier.class_names)}")
             st.write(f"**Test accuracy:** {float(meta.get('test_accuracy', 0)) * 100:.2f}%")
@@ -202,72 +249,70 @@ with predict_tab:
             st.write(f"**Dataset images:** {dataset_summary.get('total_images', 'N/A')}")
             st.write(f"**Confidence threshold:** {verifier.confidence_threshold * 100:.1f}%")
 
-        st.subheader("Upload a fruit image")
-        uploaded = st.file_uploader(
-            "Choose a JPG, PNG, JPEG, or WebP image",
-            type=["jpg", "jpeg", "png", "webp"],
-            key="fruit_image",
+        st.subheader("Choose image source")
+        input_mode = st.radio(
+            "How do you want to scan the fruit?",
+            ["📁 Upload Image", "🎥 Live Front Camera"],
+            horizontal=True,
+            label_visibility="collapsed",
         )
 
-        if uploaded is None:
-            st.info("Supported classes: Apple, Banana, Grape, Mango, and Strawberry.")
-        else:
-            try:
-                image = Image.open(uploaded).convert("RGB")
-            except Exception:
-                st.error("Could not read this file as an image.")
+        image = None
+        source_caption = "Fruit image"
+
+        if input_mode == "📁 Upload Image":
+            st.markdown("### 📁 Upload Image")
+            uploaded = st.file_uploader(
+                "Choose a JPG, PNG, JPEG, or WebP image",
+                type=["jpg", "jpeg", "png", "webp"],
+                key="fruit_image",
+            )
+            if uploaded is not None:
+                try:
+                    image = Image.open(uploaded).convert("RGB")
+                    source_caption = "Uploaded image"
+                except Exception:
+                    st.error("Could not read this file as an image.")
             else:
-                with st.spinner("Scanning and verifying image..."):
-                    result = verifier.predict(image)
+                st.info("Upload a fruit image to begin verification.")
 
-                left, right = st.columns([1, 1.25])
-                with left:
-                    st.image(image, caption="Uploaded image", use_container_width=True)
-                with right:
-                    if result.verified:
-                        st.success(f"✅ VERIFIED: {result.label}")
-                        st.subheader(result.label)
-                    else:
-                        st.warning("⚠️ UNKNOWN / NOT VERIFIED")
-                        st.subheader("The system rejected this image")
+        else:
+            st.markdown("### 🎥 Live Front Camera")
+            st.caption(
+                "Allow camera permission in your browser, place one fruit clearly in front of the camera, then capture a photo."
+            )
+            camera_photo = st.camera_input(
+                "Front camera",
+                key="front_camera",
+                help="On phones/tablets, your browser controls which physical camera is used. You can switch cameras from the browser/device camera controls when available.",
+            )
+            if camera_photo is not None:
+                try:
+                    image = Image.open(camera_photo).convert("RGB")
+                    source_caption = "Live camera capture"
+                except Exception:
+                    st.error("Could not read the captured camera image.")
+            else:
+                st.info("Open the camera and capture a fruit to begin verification.")
 
-                    c1, c2, c3 = st.columns(3)
-                    c1.metric("Classifier confidence", f"{result.confidence * 100:.2f}%")
-                    c2.metric("Dataset similarity", f"{result.dataset_similarity * 100:.2f}%")
-                    c3.metric("Verification score", f"{result.verification_score:.1f}%")
-                    st.metric("Class separation margin", f"{result.class_margin * 100:.2f}%")
+        st.caption("Supported classes: Apple, Banana, Grape, Mango, and Strawberry.")
 
-                    if result.reasons:
-                        st.write("**Why it was rejected:**")
-                        for reason in result.reasons:
-                            st.write(f"- {reason}")
-
-                st.divider()
-                st.subheader("All fruit probabilities")
-                prob_df = pd.DataFrame(
-                    [
-                        {"Fruit": name, "Probability": value}
-                        for name, value in result.probabilities.items()
-                    ]
-                ).sort_values("Probability", ascending=False)
-                prob_df["Probability %"] = prob_df["Probability"].map(
-                    lambda x: f"{x * 100:.2f}%"
-                )
-                st.dataframe(
-                    prob_df[["Fruit", "Probability %"]],
-                    hide_index=True,
-                    use_container_width=True,
-                )
-                st.bar_chart(prob_df.set_index("Fruit")["Probability"])
+        if image is not None:
+            show_prediction_result(image, verifier, source_caption)
 
 with about_tab:
     st.header("How FruitScan AI works")
     st.markdown(
         """
-FruitScan AI uses more than the highest classification probability.
+FruitScan AI supports two image sources:
+
+- **📁 Upload Image** — select a saved JPG, JPEG, PNG, or WebP image.
+- **🎥 Live Front Camera** — open the device camera in Streamlit and capture a fruit photo.
+
+Both input methods use the same verification pipeline:
 
 1. **MobileNetV3-Small classifier** predicts Apple, Banana, Grape, Mango, or Strawberry.
-2. The uploaded picture is converted to a learned **feature embedding**.
+2. The picture is converted to a learned **feature embedding**.
 3. The feature embedding is compared with **dataset class centroids** created from the training images.
 4. A **confidence gate** rejects weak classifier predictions.
 5. A **similarity gate** rejects images that do not resemble the learned fruit profile.
@@ -275,6 +320,9 @@ FruitScan AI uses more than the highest classification probability.
 
 Only when all three verification gates pass does the app display **VERIFIED**. Otherwise it returns **UNKNOWN / NOT VERIFIED**.
         """
+    )
+    st.info(
+        "Camera selection is controlled by the browser/device. On phones and tablets, use the available camera-switch control if the browser opens the rear camera instead of the front camera."
     )
     st.info(
         "This reduces forced misclassification, but no five-class image model can guarantee perfect detection of every possible non-fruit image."
