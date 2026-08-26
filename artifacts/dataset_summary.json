@@ -1,0 +1,35 @@
+{
+  "dataset_root": "/home/runner/.cache/kagglehub/datasets/utkarshsaxenadn/fruits-classification/versions/1/Fruits Classification",
+  "splits": {
+    "train": {
+      "Apple": 1940,
+      "Banana": 1940,
+      "Grape": 1940,
+      "Mango": 1940,
+      "Strawberry": 1940
+    },
+    "valid": {
+      "Apple": 40,
+      "Banana": 40,
+      "Grape": 40,
+      "Mango": 40,
+      "Strawberry": 40
+    },
+    "test": {
+      "Apple": 20,
+      "Banana": 20,
+      "Grape": 20,
+      "Mango": 20,
+      "Strawberry": 20
+    }
+  },
+  "classes": [
+    "Apple",
+    "Banana",
+    "Grape",
+    "Mango",
+    "Strawberry"
+  ],
+  "total_images": 10000,
+  "invalid_images": []
+}
