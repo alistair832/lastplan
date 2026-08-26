@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Dataset - keep the Kaggle images out of Git
+data/
+Fruits Classification/
+*.zip
+
+# Trained model artifacts
+models/*.keras
+models/*.h5
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
