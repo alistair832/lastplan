@@ -36,15 +36,16 @@ jobs:
 
       - name: Download public Kaggle dataset
         id: dataset
-        shell: bash
         run: |
-          DATASET_PATH=$(python - <<'PY'
+          python - <<'PY'
+          import os
           import kagglehub
-          print(kagglehub.dataset_download('utkarshsaxenadn/fruits-classification'))
+
+          path = kagglehub.dataset_download('utkarshsaxenadn/fruits-classification')
+          print(f'Dataset downloaded to: {path}')
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              output.write(f'path={path}\n')
           PY
-          )
-          echo "Dataset downloaded to: $DATASET_PATH"
-          echo "path=$DATASET_PATH" >> "$GITHUB_OUTPUT"
 
       - name: Train and calibrate verifier
         run: |
@@ -71,7 +72,6 @@ jobs:
           PY
 
       - name: Commit trained model and metrics
-        shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
