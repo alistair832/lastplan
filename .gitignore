@@ -1,20 +1,19 @@
+# Dataset and downloaded archives
+data/
+*.zip
+
+# Trained artifacts are generated locally
+artifacts/*.pt
+artifacts/*.pth
+
 # Python
 __pycache__/
 *.py[cod]
 .venv/
 venv/
+.env
 
-# Dataset - keep the Kaggle images out of Git
-data/
-Fruits Classification/
-*.zip
-
-# Trained model artifacts
-models/*.keras
-models/*.h5
-
-# OS / editor
+# OS / IDE
 .DS_Store
-Thumbs.db
 .vscode/
 .idea/
