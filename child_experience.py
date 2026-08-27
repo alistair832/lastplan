@@ -2,13 +2,11 @@ from __future__ import annotations
 
 import html
 import json
-import random
 
 import streamlit as st
 import streamlit.components.v1 as components
 
 from fruit_education import FRUIT_EDUCATION, fruit_names
-from fruit_learning_extras import get_learning_extra
 
 FRUIT_EMOJI = {
     "Apple": "🍎",
@@ -77,9 +75,6 @@ def _ensure_state() -> None:
         "reward_stars": 0,
         "rewarded_events": set(),
         "scan_corrections": {},
-        "find_fruit_target": None,
-        "find_fruit_completed": set(),
-        "last_auto_voice_token": None,
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -160,35 +155,6 @@ def show_collection_book() -> None:
             st.caption("✅ Unlocked!" if unlocked else "Scan me to unlock")
 
 
-def auto_announce_fruit(fruit_name: str, token: str) -> None:
-    _ensure_state()
-    if st.session_state.last_auto_voice_token == token:
-        return
-    st.session_state.last_auto_voice_token = token
-    phrase = json.dumps(f"This is a {fruit_name}! {fruit_name}.")
-    word = json.dumps(fruit_name)
-    components.html(
-        f"""
-        <script>
-        if ('speechSynthesis' in window) {{
-          window.speechSynthesis.cancel();
-          const intro = new SpeechSynthesisUtterance({phrase});
-          intro.rate = 0.85;
-          intro.pitch = 1.08;
-          intro.onend = () => {{
-            const slow = new SpeechSynthesisUtterance({word});
-            slow.rate = 0.55;
-            slow.pitch = 1.05;
-            window.speechSynthesis.speak(slow);
-          }};
-          window.speechSynthesis.speak(intro);
-        }}
-        </script>
-        """,
-        height=0,
-    )
-
-
 def repeat_pronunciation_button(fruit_name: str) -> None:
     word = json.dumps(fruit_name)
     components.html(
@@ -237,39 +203,6 @@ def show_picture_story(fruit_name: str) -> None:
     )
 
 
-def show_growth_animation(fruit_name: str) -> None:
-    extra = get_learning_extra(fruit_name)
-    icons = extra["growth_icons"]
-    stages = [
-        ("Seed / start", icons[0] if len(icons) > 0 else "🌱"),
-        ("Plant", icons[1] if len(icons) > 1 else "🌿"),
-        ("Flower", icons[2] if len(icons) > 2 else "🌸"),
-        ("Baby fruit", icons[3] if len(icons) > 3 else "🟢"),
-        ("Ripe fruit", FRUIT_EMOJI[fruit_name]),
-    ]
-    blocks = ""
-    for index, (label, icon) in enumerate(stages):
-        arrow = "<div class='arrow'>➜</div>" if index < len(stages) - 1 else ""
-        blocks += f"""<div class="grow-card" style="animation-delay:{index * 0.18}s">
-          <div class="grow-icon">{icon}</div><div class="grow-label">{html.escape(label)}</div>
-        </div>{arrow}"""
-    components.html(
-        f"""
-        <style>
-        .grow-wrap{{font-family:Arial,sans-serif;display:flex;align-items:center;gap:8px;flex-wrap:wrap}}
-        .grow-card{{min-width:105px;flex:1;text-align:center;padding:12px 8px;border-radius:18px;background:#f7fbf2;border:1px solid #d7e6cd;animation:pop 1.8s ease-in-out infinite}}
-        .grow-icon{{font-size:42px}} .grow-label{{font-size:14px;font-weight:700;margin-top:5px}}
-        .arrow{{font-size:26px;color:#777}}
-        @keyframes pop{{0%,100%{{transform:scale(1)}}50%{{transform:scale(1.05)}}}}
-        @media (prefers-reduced-motion: reduce){{.grow-card{{animation:none}}}}
-        </style>
-        <div style="font-family:Arial,sans-serif;font-size:20px;font-weight:800;margin-bottom:10px">🌱 How does it grow?</div>
-        <div class="grow-wrap">{blocks}</div>
-        """,
-        height=150,
-    )
-
-
 def show_quick_recipe_mode(fruit_name: str) -> None:
     info = FRUIT_EDUCATION[fruit_name]
     st.markdown(f"### 👩‍🍳 What can we make with {fruit_name.lower()}?")
@@ -294,73 +227,6 @@ def show_quick_recipe_mode(fruit_name: str) -> None:
                     st.write(f"**{index}.** {step}")
 
     st.caption("📷 Example learning photos — the recipe you make may look a little different.")
-
-
-def show_picture_quiz(fruit_name: str, namespace: str) -> None:
-    _ensure_state()
-    fruits = fruit_names()
-    distractors = [name for name in fruits if name != fruit_name]
-    rnd = random.Random(f"{namespace}:{fruit_name}")
-    choices = [fruit_name] + rnd.sample(distractors, 2)
-    rnd.shuffle(choices)
-
-    st.markdown(f"### 🎮 Which one is the {fruit_name.lower()}?")
-    st.write("Look at the three photos and tap the correct picture.")
-
-    cols = st.columns(3)
-    for position, (col, choice) in enumerate(zip(cols, choices), start=1):
-        with col:
-            st.image(
-                FRUIT_PHOTOS[choice],
-                use_container_width=True,
-            )
-            st.caption(f"Picture {position}")
-            if st.button(
-                "👆 Choose this picture",
-                key=f"pic_quiz_{namespace}_{choice}",
-                use_container_width=True,
-            ):
-                if choice == fruit_name:
-                    award_star(f"quiz:{namespace}:{fruit_name}", 1)
-                    st.success(f"⭐ Correct! That is the {FRUIT_EMOJI[fruit_name]} {fruit_name}!")
-                    st.balloons()
-                else:
-                    st.info(f"Good try! Look again for the {FRUIT_EMOJI[fruit_name]} {fruit_name}.")
-
-
-def show_random_find_game() -> None:
-    _ensure_state()
-    st.markdown("### 🎯 Find a Fruit Game")
-    if st.session_state.find_fruit_target is None:
-        if st.button("🎲 Give me a fruit to find", use_container_width=True):
-            st.session_state.find_fruit_target = random.choice(fruit_names())
-            st.rerun()
-        return
-    target = st.session_state.find_fruit_target
-    st.info(f"Can you find a **{FRUIT_EMOJI[target]} {target}**? Take a photo and scan it!")
-    left, right = st.columns(2)
-    with left:
-        if st.button("🔄 Pick another fruit", use_container_width=True):
-            choices = [f for f in fruit_names() if f != target]
-            st.session_state.find_fruit_target = random.choice(choices)
-            st.rerun()
-    with right:
-        if st.button("✖️ Stop game", use_container_width=True):
-            st.session_state.find_fruit_target = None
-            st.rerun()
-
-
-def check_find_game(fruit_name: str, scan_token: str) -> bool:
-    _ensure_state()
-    target = st.session_state.find_fruit_target
-    if not target or target != fruit_name:
-        return False
-    event = f"find:{scan_token}:{fruit_name}"
-    if event not in st.session_state.find_fruit_completed:
-        st.session_state.find_fruit_completed.add(event)
-        award_star(event, 2)
-    st.session_state.find_fruit_target = None
-    return True
 
 
 def corrected_label(scan_token: str) -> str | None:

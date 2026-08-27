@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-import json
 from typing import Any
 
 import streamlit as st
 
 FRUITS = ("Apple", "Banana", "Grape", "Mango", "Strawberry")
-SCHEMA_VERSION = 1
 
 
 def _default_stats() -> dict[str, int]:
@@ -17,7 +15,6 @@ def _default_stats() -> dict[str, int]:
         "quiz_correct": 0,
         "activities_opened": 0,
         "adaptive_correct": 0,
-        "passport_restores": 0,
     }
 
 
@@ -145,12 +142,9 @@ def learning_level(fruit_name: str) -> int:
 def progress_snapshot() -> dict[str, Any]:
     ensure_progress_state()
     unlocked = st.session_state.get("unlocked_fruits", set())
-    rewarded_events = st.session_state.get("rewarded_events", set())
     return {
-        "schema_version": SCHEMA_VERSION,
         "unlocked_fruits": sorted(str(item) for item in unlocked if item in FRUITS),
         "reward_stars": int(st.session_state.get("reward_stars", 0)),
-        "rewarded_events": sorted(str(item) for item in rewarded_events),
         "progress_stats": dict(st.session_state.progress_stats),
         "fruit_progress": {
             fruit: {
@@ -164,55 +158,3 @@ def progress_snapshot() -> dict[str, Any]:
             if fruit in FRUITS
         },
     }
-
-
-def progress_json() -> str:
-    return json.dumps(progress_snapshot(), indent=2)
-
-
-def restore_progress_json(raw: str | bytes) -> tuple[bool, str]:
-    ensure_progress_state()
-    try:
-        if isinstance(raw, bytes):
-            raw = raw.decode("utf-8")
-        payload = json.loads(raw)
-    except Exception:
-        return False, "I could not read that Fruit Passport file."
-
-    if payload.get("schema_version") != SCHEMA_VERSION:
-        return False, "This Fruit Passport uses a different version."
-
-    st.session_state.unlocked_fruits = {
-        fruit for fruit in payload.get("unlocked_fruits", []) if fruit in FRUITS
-    }
-    st.session_state.reward_stars = max(0, int(payload.get("reward_stars", 0)))
-    st.session_state.rewarded_events = set(
-        str(item) for item in payload.get("rewarded_events", [])
-    )
-
-    stats = _default_stats()
-    incoming_stats = payload.get("progress_stats", {})
-    for key in stats:
-        stats[key] = max(0, int(incoming_stats.get(key, stats[key])))
-    stats["passport_restores"] += 1
-    st.session_state.progress_stats = stats
-
-    fruit_stats = _default_fruit_stats()
-    incoming_fruits = payload.get("fruit_progress", {})
-    for fruit in FRUITS:
-        incoming = incoming_fruits.get(fruit, {})
-        fruit_stats[fruit] = {
-            "scans": max(0, int(incoming.get("scans", 0))),
-            "quiz_attempts": max(0, int(incoming.get("quiz_attempts", 0))),
-            "quiz_correct": max(0, int(incoming.get("quiz_correct", 0))),
-            "activities": [
-                str(item)
-                for item in incoming.get("activities", [])
-                if str(item) in {"think", "kitchen", "games"}
-            ],
-            "adaptive_correct": max(0, int(incoming.get("adaptive_correct", 0))),
-        }
-    st.session_state.fruit_progress = fruit_stats
-    st.session_state.progress_seen_scans = set()
-    st.session_state.progress_seen_events = set()
-    return True, "Fruit Passport loaded successfully."

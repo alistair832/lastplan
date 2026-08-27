@@ -6,6 +6,7 @@ from pathlib import Path
 import streamlit as st
 from PIL import Image
 
+from about_ui import show_about
 from activity_cards import activity_header, activity_home, show_plant_needs_cards
 from adaptive_learning import show_adaptive_challenge
 from adult_dashboard import show_adult_dashboard
@@ -32,7 +33,6 @@ from child_experience import (
 from child_quiz import show_picture_quiz
 from education_ui import show_learning_browser
 from fruit_education import FRUIT_EDUCATION, fruit_names
-from model_setup_ui import show_about, show_model_setup
 from progress_store import ensure_progress_state, record_scan
 from thinking_mode import (
     show_guess_before_reveal,
@@ -43,9 +43,6 @@ from thinking_mode import (
 from verifier import FruitVerifier
 
 CHECKPOINT = Path("artifacts/fruit_classifier.pt")
-SUMMARY = Path("artifacts/dataset_summary.json")
-DATA_DIR = Path("data")
-UPLOAD_DIR = Path("artifacts/uploads")
 
 st.set_page_config(page_title="FruitScan Kids", page_icon="🍓", layout="wide")
 child_styles()
@@ -403,7 +400,10 @@ with scan_tab:
         st.warning("The fruit recognition model is not ready yet.")
         if verifier_error:
             st.error(f"Checkpoint loading error: {verifier_error}")
-        st.write("Open **Adult → Model Setup** to prepare the trained model.")
+        st.info(
+            "Please ask the project developer to restore the trained model file at "
+            "`artifacts/fruit_classifier.pt`."
+        )
     else:
         show_progress_banner()
         with st.expander("📖 My Fruit Collection", expanded=False):
@@ -537,20 +537,10 @@ with learn_tab:
     show_learning_browser()
 
 with adult_tab:
-    dashboard_tab, setup_tab, about_tab = st.tabs(
-        ["📊 Dashboard", "🛠️ Model Setup", "ℹ️ About"]
-    )
+    dashboard_tab, about_tab = st.tabs(["📊 Dashboard", "ℹ️ About"])
 
     with dashboard_tab:
         show_adult_dashboard()
-
-    with setup_tab:
-        show_model_setup(
-            CHECKPOINT,
-            SUMMARY,
-            DATA_DIR,
-            UPLOAD_DIR,
-        )
 
     with about_tab:
         show_about()
