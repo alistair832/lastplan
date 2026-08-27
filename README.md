@@ -1,6 +1,6 @@
 # FruitScan Kids — Early-Years Fruit Learning with AI
 
-FruitScan Kids is an educational Streamlit project for early-years learners. Children can **upload a fruit picture or use the live camera**, let the AI recognise the fruit, then continue into a simple lesson about pronunciation, seeds, plant growth, weather, soil, water, sunlight, photosynthesis, and easy fruit food activities.
+FruitScan Kids is a child-friendly Streamlit learning app. A learner can take a fruit photo or choose a picture, think and predict before the AI reveals an accepted result, then continue into visual learning activities, recipes, quizzes, and thinking games.
 
 Supported fruits:
 
@@ -12,68 +12,35 @@ Supported fruits:
 
 Dataset: https://www.kaggle.com/datasets/utkarshsaxenadn/fruits-classification
 
-## Educational goal
+## Child learning flow
 
-The project turns fruit recognition into a learning journey:
-
-1. **See it** — take or upload a fruit picture.
-2. **Name it** — AI identifies and verifies the fruit.
-3. **Say it** — use the browser pronunciation button and repeat the word.
-4. **Explore it** — learn simple fruit facts and what the seed looks like.
-5. **Grow it** — learn about the plant, weather, soil, water, sunlight, flowers, and fruit development.
-6. **Understand leaves** — learn a simple early-years explanation of photosynthesis.
-7. **Make something** — follow a short adult-supervised snack, drink, or dessert activity.
-
-The app also includes a separate **🎓 Learn Fruits** tab, so children can browse lessons without scanning a picture first.
-
-## Child-facing Streamlit sections
-
-### 📷 Scan & Learn
-
-Choose either:
-
-- **📁 Upload Image**
-- **🎥 Live Front Camera**
-
-When a fruit is verified, the app automatically opens its learning lesson.
-
-### 🎓 Learn Fruits
-
-Select any supported fruit and explore:
-
-- 🔊 pronunciation
-- 🌟 general information
-- 🌰 seed appearance
-- 🌱 plant type and growth stages
-- 🌤️ weather
-- 🪴 soil / dirt
-- 💧 water
-- ☀️ sunlight
-- 🌿 photosynthesis
-- 🥪 simple food activity
-- 🥤 simple drink activity
-- 🍨 simple dessert activity
-- 🧑‍🧑‍🧒 adult safety note
-
-### 🛠️ Model Setup
-
-This section is intended for teachers, parents, or project setup rather than children.
+1. **📷 Scan & Think** — take or choose a clear fruit picture.
+2. **🤔 Predict** — make a guess and explain a clue before the answer is revealed.
+3. **❓ Unknown Gateway** — uncertain or out-of-profile images are rejected and the learner is asked to retry.
+4. **🌟 Activities** — choose one large activity card at a time.
+5. **🧠 Think & Discover** — observe, predict, compare, sequence, and reason.
+6. **👩‍🍳 Fruit Kitchen** — explore food, drink, and dessert ideas with adult help.
+7. **🎮 Quiz & Games** — use picture quizzes, thinking games, and adaptive challenge levels.
+8. **🎓 Learn Fruits** — browse lessons and the fruit collection.
+9. **⚙️ Adult** — view a simple parent / teacher dashboard and project information.
 
 ## AI verification design
 
-A normal five-class classifier always chooses one of its known labels. FruitScan Kids keeps the existing FruitScan verification system so uncertain pictures can be rejected instead of teaching the wrong fruit.
+The recognition model is a MobileNetV3-Small five-class classifier with a conservative verification layer. Before a fruit result is accepted, FruitScan checks model confidence, dataset-centroid similarity, class separation, top-two probability separation, classifier/centroid agreement, and basic image quality.
 
-Before a result is accepted, the system checks:
+If the image does not pass the gateway, the child-facing app shows **Unknown / Not Recognised** and asks the learner to retake the photo or choose another picture.
 
-1. **Classifier confidence**
-2. **Dataset similarity**
-3. **Class separation**
+The trained model is loaded automatically from:
 
-If the checks fail, the child-facing interface simply says that it is not sure and asks for another picture. Technical values remain available inside a teacher/model-details expander.
+```text
+artifacts/fruit_classifier.pt
+```
 
-## Dataset scan
+Training controls are intentionally not shown in the deployed child-facing interface.
 
-The supplied Kaggle ZIP was verified successfully:
+## Dataset and model results
+
+The project dataset contains 10,000 images across five balanced fruit classes:
 
 | Split | Apple | Banana | Grape | Mango | Strawberry | Total |
 |---|---:|---:|---:|---:|---:|---:|
@@ -82,27 +49,53 @@ The supplied Kaggle ZIP was verified successfully:
 | Test | 20 | 20 | 20 | 20 | 20 | 100 |
 | **Total** | **2,000** | **2,000** | **2,000** | **2,000** | **2,000** | **10,000** |
 
-All **10,000 images were readable and 0 corrupt images were found** during the integrity scan.
+Current saved metrics are available in `artifacts/metrics.json`.
 
-## Project files
+## Project structure
 
 ```text
 lastplan/
-├── app.py                 # Main Streamlit application
-├── education_ui.py        # Child-friendly learning interface
-├── fruit_education.py     # Fruit facts, growing information, recipes and safety notes
-├── prepare_dataset.py     # Extract ZIP + verify dataset images
-├── dataset_utils.py       # Dataset discovery and scan helpers
-├── model.py               # MobileNetV3-Small classifier
-├── train.py               # Training + verifier calibration
-├── verifier.py            # Confidence/similarity/margin verification
-├── predict.py             # Command-line prediction
+├── app.py                     # Main Streamlit application
+├── about_ui.py                # About page
+├── activity_cards.py          # Large child-friendly activity navigation
+├── adaptive_learning.py       # Six-level adaptive learning challenges
+├── adult_dashboard.py         # Parent / teacher session summary
+├── camera_guidance.py         # Child-friendly photo guidance
+├── camera_history.py          # Temporary session camera history
+├── child_experience.py        # Rewards, collection, pronunciation, visual stories, recipes
+├── child_quiz.py              # Picture quiz with progress tracking
+├── education_ui.py            # Browseable fruit learning interface
+├── fruit_education.py         # Fruit facts, growth, recipes, and safety information
+├── fruit_learning_extras.py   # Extra child-learning facts and quiz content
+├── progress_store.py          # Current-session learning progress
+├── thinking_mode.py           # Prediction and higher-order thinking activities
+├── model.py                   # MobileNetV3-Small model definition
+├── verifier.py                # Unknown/verification gateway
+├── train.py                   # Developer training and calibration script
+├── dataset_utils.py           # Dataset scan helpers used during training
+├── predict.py                 # Optional command-line model diagnostic
 ├── requirements.txt
 ├── .streamlit/config.toml
-├── .gitignore
-├── data/                  # generated locally
-└── artifacts/             # model + metrics
+├── .github/workflows/train-fruit-model.yml
+└── artifacts/
+    ├── fruit_classifier.pt    # Trained checkpoint used by the app
+    ├── metrics.json           # Saved evaluation metrics
+    └── dataset_summary.json   # Saved dataset summary
 ```
+
+## Developer retraining
+
+Retraining is kept outside the child-facing interface. The GitHub Actions workflow can download the public Kaggle dataset and run `train.py`, or a developer can train locally with the expected `train`, `valid`, and `test` folder structure.
+
+The training pipeline depends on:
+
+```text
+train.py
+model.py
+dataset_utils.py
+```
+
+The generated checkpoint is then loaded by `verifier.py` and the Streamlit app.
 
 ## Run locally
 
@@ -128,20 +121,16 @@ streamlit run app.py
 
 ## Deploy on Streamlit Community Cloud
 
-Use:
-
 ```text
 Repository: alistair832/lastplan
 Branch: main
 Main file: app.py
 ```
 
-Then deploy the app from Streamlit Community Cloud.
+## Safety
 
-## Safety for early-years food activities
+Fruit Kitchen activities are educational examples for adult-supervised use. Adults should manage knives, blenders, heat, food allergies, and age-appropriate choking safety.
 
-The kitchen activities are educational examples for **adult-supervised use**. Adults should manage knives, blenders, heat, food allergies, and age-appropriate choking safety. Whole grapes must not be served to young children; the app specifically reminds adults to cut grapes lengthwise into quarters.
+## AI limitation
 
-## Important AI limitation
-
-FruitScan Kids is a learning aid, not a perfect identification system. It currently understands five fruit classes. The verification layer reduces forced misclassification, but uncertain or unfamiliar images should still be tried again with a clearer picture.
+FruitScan Kids currently understands five trained fruit classes. The Unknown Gateway reduces forced misclassification but cannot guarantee perfect rejection of every unseen object or fruit. Clear, centered photos with good lighting give the best results.
