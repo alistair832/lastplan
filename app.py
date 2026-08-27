@@ -107,6 +107,13 @@ def activity_fruit_picker() -> str:
     return selected
 
 
+def sync_activity_fruit(fruit_name: str) -> None:
+    if fruit_name not in fruit_names():
+        return
+    st.session_state.current_learning_fruit = fruit_name
+    st.session_state.activity_fruit_picker = fruit_name
+
+
 def show_correction_controls(
     scan_token: str,
     current_label: str | None,
@@ -145,7 +152,7 @@ def show_correction_controls(
             use_container_width=True,
         ):
             save_correction(scan_token, correct, history_id)
-            st.session_state.current_learning_fruit = correct
+            sync_activity_fruit(correct)
             st.session_state[state_key] = False
             st.rerun()
 
@@ -191,7 +198,7 @@ def show_child_result(
     st.divider()
 
     if effective_label:
-        st.session_state.current_learning_fruit = effective_label
+        sync_activity_fruit(effective_label)
         emoji = FRUIT_EMOJI[effective_label]
         newly_unlocked = unlock_fruit(effective_label, scan_token)
 
