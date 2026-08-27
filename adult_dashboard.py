@@ -7,9 +7,7 @@ from progress_store import (
     FRUITS,
     ensure_progress_state,
     learning_level,
-    progress_json,
     progress_snapshot,
-    restore_progress_json,
 )
 
 FRUIT_EMOJI = {
@@ -30,7 +28,8 @@ def show_adult_dashboard() -> None:
 
     st.header("📊 Parent / Teacher Dashboard")
     st.caption(
-        "A simple learning summary. No child name, account, or personal profile is required."
+        "A simple learning summary for the current FruitScan session. "
+        "No child name, account, or personal profile is required."
     )
 
     c1, c2, c3, c4 = st.columns(4)
@@ -60,42 +59,7 @@ def show_adult_dashboard() -> None:
         use_container_width=True,
     )
 
-    st.markdown("### 💾 Fruit Passport")
-    st.write(
-        "Streamlit sessions can reset. An adult can save this small progress file and load it "
-        "again later. It stores learning progress only — no photos and no child name."
+    st.info(
+        "📌 This dashboard is session-based. It is intended as a simple parent/teacher "
+        "view during the current learning session."
     )
-
-    st.download_button(
-        "💾 Save Fruit Passport",
-        data=progress_json().encode("utf-8"),
-        file_name="fruitscan_kids_progress.json",
-        mime="application/json",
-        use_container_width=True,
-    )
-
-    uploaded = st.file_uploader(
-        "Load a saved Fruit Passport",
-        type=["json"],
-        key="fruit_passport_upload",
-    )
-    if uploaded is not None:
-        if st.button(
-            "📥 Restore this progress",
-            key="restore_fruit_passport",
-            type="primary",
-            use_container_width=True,
-        ):
-            ok, message = restore_progress_json(uploaded.getvalue())
-            if ok:
-                st.success(message)
-                st.rerun()
-            else:
-                st.error(message)
-
-    with st.expander("ℹ️ What is saved?", expanded=False):
-        st.write(
-            "Unlocked fruits, stars, scan counts, quiz results, activity participation, "
-            "and adaptive challenge progress."
-        )
-        st.write("Camera photos are not included in the Fruit Passport.")
