@@ -25,7 +25,6 @@ from child_experience import (
     repeat_pronunciation_button,
     save_correction,
     show_collection_book,
-    show_growth_animation,
     show_picture_quiz,
     show_picture_story,
     show_progress_banner,
@@ -37,6 +36,12 @@ from dataset_utils import save_summary, scan_dataset
 from education_ui import show_fruit_lesson, show_learning_browser
 from fruit_education import FRUIT_EDUCATION, fruit_names
 from prepare_dataset import extract_dataset
+from thinking_mode import (
+    show_guess_before_reveal,
+    show_prediction_feedback,
+    show_thinking_games,
+    show_thinking_lesson,
+)
 from verifier import FruitVerifier
 
 CHECKPOINT = Path("artifacts/fruit_classifier.pt")
@@ -48,7 +53,7 @@ st.set_page_config(page_title="FruitScan Kids", page_icon="🍓", layout="wide")
 child_styles()
 st.title("🍓 FruitScan Kids")
 st.caption(
-    "Take a fruit picture, collect it, learn how it grows, practise its name, play a quiz, and earn stars!"
+    "Scan a fruit, think about your clues, make a prediction, discover the answer, and learn through play!"
 )
 
 
@@ -90,7 +95,11 @@ def show_correction_controls(
     state_key = f"correction_open_{scan_token}"
 
     button_label = "❌ That's not my fruit" if current_label else "✅ I know this fruit"
-    if st.button(button_label, key=f"wrong_recognition_{scan_token}", use_container_width=True):
+    if st.button(
+        button_label,
+        key=f"wrong_recognition_{scan_token}",
+        use_container_width=True,
+    ):
         st.session_state[state_key] = True
 
     if not st.session_state.get(state_key, False):
@@ -137,53 +146,75 @@ def show_child_result(
     scan_token: str,
     history_id: str | None = None,
 ) -> None:
-    with st.spinner("🔎 Looking at your fruit..."):
+    with st.spinner("🔎 FruitScan is looking carefully..."):
         result = verifier.predict(image)
-
-    if history_id is not None:
-        update_camera_result(history_id, result)
 
     model_label = result.label if result.verified else None
     effective_label = corrected_label(scan_token) or model_label
 
+    # A verified answer is deliberately hidden until the child predicts and
+    # gives a reason. This prevents Camera History from leaking the label too.
+    if effective_label:
+        ready_to_reveal = show_guess_before_reveal(
+            image,
+            source_caption,
+            effective_label,
+            scan_token,
+        )
+        if not ready_to_reveal:
+            return
+
+    # Only save the recognition label to Camera History after the thinking
+    # gate is complete. Unknown results can be stored immediately.
+    if history_id is not None:
+        update_camera_result(history_id, result)
+
     st.divider()
-    image_col, result_col = st.columns([1, 1.15])
 
-    with image_col:
-        st.image(image, caption=source_caption, use_container_width=True)
+    if effective_label:
+        emoji = FRUIT_EMOJI[effective_label]
+        newly_unlocked = unlock_fruit(effective_label, scan_token)
 
-    with result_col:
-        if effective_label:
-            emoji = FRUIT_EMOJI[effective_label]
-            newly_unlocked = unlock_fruit(effective_label, scan_token)
+        st.success(f"🎉 FruitScan found: {emoji} {effective_label}")
+        st.markdown(f"# {emoji} {effective_label}")
+        show_prediction_feedback(effective_label, scan_token)
 
-            st.success(f"🎉 This is a {effective_label}! {emoji}")
-            st.markdown(f"# {emoji} {effective_label}")
-            if newly_unlocked:
-                st.info("⭐ New fruit unlocked in your Collection Book!")
+        if newly_unlocked:
+            st.info("⭐ New fruit unlocked in your Collection Book!")
 
-            st.caption("Tap the button below if you want to hear the fruit name.")
-            repeat_pronunciation_button(effective_label)
+        st.caption("Tap the button if you want to hear and practise the fruit name.")
+        repeat_pronunciation_button(effective_label)
 
-            if check_find_game(effective_label, scan_token):
-                st.success(f"🏆 You found the {emoji} {effective_label}! +2 stars!")
+        if check_find_game(effective_label, scan_token):
+            st.success(f"🏆 You found the {emoji} {effective_label}! +2 stars!")
 
-            show_correction_controls(scan_token, effective_label, history_id)
-        else:
-            st.warning("🤔 I am not sure what this fruit is.")
-            st.write("Try a clearer picture, or tell FruitScan which fruit it is.")
+        show_correction_controls(scan_token, effective_label, history_id)
+    else:
+        image_col, message_col = st.columns([1, 1.15])
+        with image_col:
+            st.image(image, caption=source_caption, use_container_width=True)
+        with message_col:
+            st.warning("🤔 FruitScan is not sure yet.")
+            st.write(
+                "That is okay. Try a clearer picture, or tell FruitScan which fruit you know it is."
+            )
             show_correction_controls(scan_token, None, history_id)
-
-    if not effective_label:
         return
 
     st.markdown("---")
-    st.markdown(f"## 🌟 Let's learn about {FRUIT_EMOJI[effective_label]} {effective_label}")
+    st.markdown(
+        f"## 🌟 Think and learn about {FRUIT_EMOJI[effective_label]} {effective_label}"
+    )
 
+    # Visual discovery comes after the child has made a prediction.
     show_picture_story(effective_label)
-    show_growth_animation(effective_label)
+
+    # Replace the passive growth display with active observation, prediction,
+    # comparison, sequencing, cause-and-effect, and teach-back activities.
+    show_thinking_lesson(effective_label, namespace=scan_token[:16])
 
     info = FRUIT_EDUCATION[effective_label]
+    st.markdown("## 🌿 What does the plant need?")
     needs_left, needs_right = st.columns(2)
     with needs_left:
         st.info(f"☀️ **Sun:** {info['sun']}")
@@ -198,10 +229,14 @@ def show_child_result(
 
     show_quick_recipe_mode(effective_label)
 
-    st.markdown("## 🎮 Quiz & Games")
-    quiz_tab, find_tab = st.tabs(["🖼️ Picture Quiz", "🎯 Find a Fruit"])
-    with quiz_tab:
+    st.markdown("## 🎮 Quiz & Thinking Games")
+    picture_tab, thinking_tab, find_tab = st.tabs(
+        ["🖼️ Picture Quiz", "🧠 Thinking Games", "🎯 Find a Fruit"]
+    )
+    with picture_tab:
         show_picture_quiz(effective_label, namespace=scan_token[:16])
+    with thinking_tab:
+        show_thinking_games(effective_label, namespace=scan_token[:16])
     with find_tab:
         show_random_find_game()
 
@@ -210,7 +245,7 @@ def show_child_result(
 
 
 scan_tab, learn_tab, setup_tab, about_tab = st.tabs(
-    ["📷 Scan & Learn", "🎓 Learn Fruits", "🛠️ Model Setup", "ℹ️ About"]
+    ["📷 Scan & Think", "🎓 Learn Fruits", "🛠️ Model Setup", "ℹ️ About"]
 )
 
 with scan_tab:
@@ -226,8 +261,10 @@ with scan_tab:
             st.header("🍓 FruitScan Kids")
             st.success("Fruit recognition ready")
             st.success("Camera ready")
-            st.info("Learning mode: Early Years")
-            st.caption("Technical model details are kept away from the child learning screen.")
+            st.info("Learning mode: Think & Discover")
+            st.caption(
+                "FruitScan asks the child to observe and predict before revealing a verified answer."
+            )
 
         show_progress_banner()
         show_collection_book()
@@ -336,7 +373,7 @@ with learn_tab:
 with setup_tab:
     st.header("🛠️ Model Setup")
     st.write(
-        "This section is for teachers, parents, or project setup. Children can use Scan & Learn and Learn Fruits."
+        "This section is for teachers, parents, or project setup. Children can use Scan & Think and Learn Fruits."
     )
 
     if CHECKPOINT.exists():
@@ -454,7 +491,7 @@ with setup_tab:
                 if return_code == 0 and CHECKPOINT.exists():
                     status.update(label="Training completed", state="complete")
                     st.cache_resource.clear()
-                    st.success("The trained model is ready. Open Scan & Learn.")
+                    st.success("The trained model is ready. Open Scan & Think.")
                     st.rerun()
                 else:
                     status.update(label="Training failed", state="error")
@@ -463,23 +500,30 @@ with setup_tab:
 with about_tab:
     st.header("ℹ️ About FruitScan Kids")
     st.write(
-        "FruitScan Kids is an early-years fruit learning project. Children use real fruit pictures to connect recognition, language, science, food, play, and progress."
+        "FruitScan Kids is an early-years fruit learning project. AI recognition starts the activity, but the child does the observing, predicting, explaining, comparing, sequencing, and applying."
     )
     st.markdown(
         """
-### Child learning journey
+### Think & Discover learning journey
 
 **1. Scan it** — Take a photo or choose a picture.  
-**2. Name it** — FruitScan shows the recognised fruit name.  
-**3. Say it** — Press **Say It Again** when you want to hear and practise pronunciation.  
-**4. See it** — Learn through fruit, inside, seed, plant, and food pictures.  
-**5. Grow it** — Follow the animated growth steps.  
-**6. Make it** — Try simple food, drink, and dessert ideas with an adult.  
-**7. Play it** — Answer the Picture Quiz, then try Find a Fruit from the same Quiz & Games area.  
-**8. Collect it** — Unlock fruits in the Collection Book.  
-**9. Earn it** — Collect stars and trophies without confetti animations.  
-**10. Review it** — Reopen earlier camera pictures from Scan History.
+**2. Predict it** — Guess the fruit before FruitScan reveals its answer.  
+**3. Explain it** — Choose a clue and say why you made that prediction.  
+**4. Discover it** — Reveal the AI result and compare it with your guess.  
+**5. Observe it** — Notice shape and useful visual clues.  
+**6. Look inside** — Predict the seeds or pit before discovering them.  
+**7. Sequence it** — Put the growth stages in the correct order.  
+**8. Compare it** — Compare how two fruits grow.  
+**9. Reason it** — Explore cause and effect, such as what happens without water.  
+**10. Teach it** — Tell FruitScan one thing you learned.  
+**11. Play it** — Try Picture Quiz, Mystery Fruit, Sort It, Odd One Out, and Find a Fruit.  
+**12. Apply it** — Find a real fruit and scan it in your environment.  
+**13. Collect it** — Unlock fruits and earn stars as you learn.  
+**14. Review it** — Reopen earlier camera pictures from Scan History.
         """
+    )
+    st.info(
+        "Feedback avoids a harsh 'Wrong Answer' message. Children are encouraged to look again, use a clue, and rethink their answer."
     )
     st.warning(
         "👨‍👩‍👧 Food activities require adult supervision. Adults should handle knives, blenders, heat, allergies, and age-appropriate choking safety."
