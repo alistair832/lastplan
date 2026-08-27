@@ -1,15 +1,15 @@
 from __future__ import annotations
 
 import hashlib
-import json
-import subprocess
-import sys
 from pathlib import Path
 
-import pandas as pd
 import streamlit as st
 from PIL import Image
 
+from activity_cards import activity_header, activity_home, show_plant_needs_cards
+from adaptive_learning import show_adaptive_challenge
+from adult_dashboard import show_adult_dashboard
+from camera_guidance import show_camera_guidance
 from camera_history import (
     remember_camera_photo,
     selected_camera_id,
@@ -24,16 +24,16 @@ from child_experience import (
     repeat_pronunciation_button,
     save_correction,
     show_collection_book,
-    show_picture_quiz,
     show_picture_story,
     show_progress_banner,
     show_quick_recipe_mode,
     unlock_fruit,
 )
-from dataset_utils import save_summary, scan_dataset
+from child_quiz import show_picture_quiz
 from education_ui import show_learning_browser
 from fruit_education import FRUIT_EDUCATION, fruit_names
-from prepare_dataset import extract_dataset
+from model_setup_ui import show_about, show_model_setup
+from progress_store import ensure_progress_state, record_scan
 from thinking_mode import (
     show_guess_before_reveal,
     show_prediction_feedback,
@@ -49,23 +49,39 @@ UPLOAD_DIR = Path("artifacts/uploads")
 
 st.set_page_config(page_title="FruitScan Kids", page_icon="🍓", layout="wide")
 child_styles()
+ensure_progress_state()
+
+st.markdown(
+    """
+    <style>
+    .block-container { max-width: 1180px; padding-top: 1.5rem; }
+    .stButton > button {
+        min-height: 64px;
+        border-radius: 18px;
+        font-size: 1.08rem;
+        font-weight: 800;
+    }
+    div[data-baseweb="select"] > div { min-height: 56px; border-radius: 16px; }
+    div[data-testid="stFileUploader"] { border-radius: 18px; }
+    div[data-testid="stMetric"] {
+        border: 1px solid rgba(128,128,128,.22);
+        border-radius: 18px;
+        padding: 12px;
+    }
+    @media (max-width: 760px) {
+        .block-container { padding-left: 1rem; padding-right: 1rem; }
+        h1 { font-size: 2rem !important; }
+        h2 { font-size: 1.55rem !important; }
+        h3 { font-size: 1.25rem !important; }
+        .stButton > button { min-height: 68px; }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 st.title("🍓 FruitScan Kids")
-st.caption("Scan, think, discover, cook, and play — one simple activity at a time!")
-
-
-def show_dataset_summary(summary: dict) -> None:
-    rows = []
-    for split, counts in summary.get("splits", {}).items():
-        for fruit, count in counts.items():
-            rows.append({"Split": split, "Fruit": fruit, "Images": count})
-    if rows:
-        st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
-    st.write(f"**Total images:** {summary.get('total_images', 0):,}")
-    corrupt = summary.get("corrupt_images", [])
-    if corrupt:
-        st.error(f"Corrupt/unreadable images found: {len(corrupt)}")
-    else:
-        st.success("Dataset image scan completed with no corrupt images found.")
+st.caption("Scan • Think • Discover • Create • Play")
 
 
 @st.cache_resource
@@ -93,7 +109,7 @@ def activity_fruit_picker() -> str:
     fruits = fruit_names()
     current = current_learning_fruit()
     selected = st.selectbox(
-        "🍓 Choose the fruit for this activity",
+        "🍓 Choose a fruit",
         fruits,
         index=fruits.index(current),
         format_func=lambda name: f"{FRUIT_EMOJI[name]} {name}",
@@ -135,7 +151,6 @@ def show_correction_controls(
     current_label: str,
     history_id: str | None,
 ) -> None:
-    """Correction is only available after an image passes the Unknown Gateway."""
     state_key = f"correction_open_{scan_token}"
 
     if st.button(
@@ -190,7 +205,7 @@ def show_unknown_gateway(
     history_id: str | None,
     scan_token: str,
 ) -> None:
-    """Child-facing rejection screen for out-of-dataset or uncertain images."""
+    record_scan(scan_token, None, verified=False)
     if history_id is not None:
         update_camera_result(history_id, result)
 
@@ -202,17 +217,14 @@ def show_unknown_gateway(
 
     with message_col:
         st.error("❓ Unknown / Not Recognised")
-        st.markdown("### This picture did not safely match a trained fruit.")
+        st.markdown("### Let's try another picture")
         st.write(
-            "FruitScan will not guess when the picture does not pass the recognition gateway."
+            "FruitScan is not sure this picture matches one of the five fruits it knows."
         )
         st.caption(
-            "FruitScan currently recognises only: 🍎 Apple, 🍌 Banana, 🍇 Grape, "
-            "🥭 Mango, and 🍓 Strawberry."
+            "🍎 Apple • 🍌 Banana • 🍇 Grape • 🥭 Mango • 🍓 Strawberry"
         )
-        st.info(
-            "Try one clear fruit in the centre of the picture with enough light and not too much background."
-        )
+        st.info("Try one clear fruit, good light, and a simple background.")
 
         retake_col, upload_col = st.columns(2)
         with retake_col:
@@ -234,11 +246,6 @@ def show_unknown_gateway(
                 _start_fresh_upload()
                 st.rerun()
 
-    st.caption(
-        "The Unknown Gateway is intentionally conservative: a valid fruit may sometimes be "
-        "rejected and asked to retry instead of receiving a wrong fruit name."
-    )
-
 
 def show_child_result(
     image: Image.Image,
@@ -250,8 +257,6 @@ def show_child_result(
     with st.spinner("🔎 FruitScan is checking the picture..."):
         result = verifier.predict(image)
 
-    # Gateway first: an uncertain or out-of-profile image never reaches guessing,
-    # correction, rewards, lessons, or a forced five-class fruit label.
     if not result.verified:
         show_unknown_gateway(
             image,
@@ -262,6 +267,7 @@ def show_child_result(
         )
         return
 
+    record_scan(scan_token, result.label, verified=True)
     model_label = result.label
     effective_label = corrected_label(scan_token) or model_label
 
@@ -291,62 +297,98 @@ def show_child_result(
         show_prediction_feedback(effective_label, scan_token)
 
         if newly_unlocked:
-            st.info("⭐ New fruit unlocked in your Collection Book!")
+            st.info("⭐ New fruit unlocked!")
 
-        st.caption("Tap the button if you want to hear and practise the fruit name.")
+        st.caption("Want to practise the name?")
         repeat_pronunciation_button(effective_label)
         show_correction_controls(scan_token, effective_label, history_id)
 
-    st.markdown("### 🌟 Choose what to do next")
+    st.markdown("### 🌟 Ready for more?")
     st.info(
-        f"Your {emoji} **{effective_label}** is ready in **🌟 Activities**. "
-        "Open that section above, then choose **🧠 Think & Discover**, "
-        "**👩‍🍳 Fruit Kitchen**, or **🎮 Quiz & Games**."
+        f"Open **🌟 Activities**. Your {emoji} **{effective_label}** is already selected."
     )
 
 
 def show_think_activity(fruit_name: str) -> None:
-    st.header(f"🧠 Think & Discover — {FRUIT_EMOJI[fruit_name]} {fruit_name}")
-    st.caption(
-        "Observe, predict, compare, sequence, and explain. Work through only the activities you want."
-    )
-
+    activity_header("think", fruit_name, FRUIT_EMOJI[fruit_name])
+    st.caption("Look closer, predict, compare, put things in order, and explain.")
     show_picture_story(fruit_name)
     show_thinking_lesson(fruit_name, namespace=f"activity-{fruit_name.lower()}")
-
-    info = FRUIT_EDUCATION[fruit_name]
-    st.markdown("### 🌿 What does the plant need?")
-    needs_left, needs_right = st.columns(2)
-    with needs_left:
-        st.info(f"☀️ **Sun:** {info['sun']}")
-        st.info(f"💧 **Water:** {info['water']}")
-    with needs_right:
-        st.info(f"🪴 **Soil:** {info['soil']}")
-        st.info(f"🌤️ **Weather:** {info['weather']}")
-
-    st.success(
-        "🌿 **Photosynthesis:** ☀️ Sunlight + 💧 Water + 🌬️ Air → 🍬 Plant food + 🌱 Growth"
-    )
+    show_plant_needs_cards(FRUIT_EDUCATION[fruit_name])
 
 
 def show_kitchen_activity(fruit_name: str) -> None:
-    st.header(f"👩‍🍳 Fruit Kitchen — {FRUIT_EMOJI[fruit_name]} {fruit_name}")
-    st.caption(
-        "Choose a food, drink, or dessert and explore the simple steps with an adult."
-    )
+    activity_header("kitchen", fruit_name, FRUIT_EMOJI[fruit_name])
+    st.caption("Choose a food, drink, or dessert. Ask an adult to help.")
     show_quick_recipe_mode(fruit_name)
 
 
-def show_games_activity(fruit_name: str) -> None:
-    st.header(f"🎮 Quiz & Games — {FRUIT_EMOJI[fruit_name]} {fruit_name}")
-    st.caption("Choose either a picture quiz or a thinking game.")
+def _game_home(fruit_name: str) -> str | None:
+    if "game_page" not in st.session_state:
+        st.session_state.game_page = "home"
+    current = st.session_state.game_page
+    if current in {"picture", "thinking"}:
+        return current
 
-    picture_tab, thinking_tab = st.tabs(
-        ["🖼️ Picture Quiz", "🧠 Thinking Games"]
-    )
-    with picture_tab:
+    st.markdown("### 🎮 Choose a game")
+    left, right = st.columns(2)
+
+    with left:
+        with st.container(border=True):
+            st.markdown(
+                "<div style='text-align:center;font-size:64px'>🖼️</div>",
+                unsafe_allow_html=True,
+            )
+            st.markdown("### Picture Quiz")
+            st.write("Look at real fruit photos and choose the correct one.")
+            if st.button(
+                "PLAY PICTURE QUIZ",
+                key="open_picture_game",
+                type="primary",
+                use_container_width=True,
+            ):
+                st.session_state.game_page = "picture"
+                st.rerun()
+
+    with right:
+        with st.container(border=True):
+            st.markdown(
+                "<div style='text-align:center;font-size:64px'>🧩</div>",
+                unsafe_allow_html=True,
+            )
+            st.markdown("### Thinking Games")
+            st.write("Solve mystery, sorting, and odd-one-out challenges.")
+            if st.button(
+                "PLAY THINKING GAMES",
+                key="open_thinking_game",
+                use_container_width=True,
+            ):
+                st.session_state.game_page = "thinking"
+                st.rerun()
+
+    show_adaptive_challenge(fruit_name)
+    return None
+
+
+def show_games_activity(fruit_name: str) -> None:
+    activity_header("games", fruit_name, FRUIT_EMOJI[fruit_name])
+    game = _game_home(fruit_name)
+    if game is None:
+        return
+
+    if st.button(
+        "⬅️ Back to Game Menu",
+        key=f"game_back_{game}",
+        use_container_width=True,
+    ):
+        st.session_state.game_page = "home"
+        st.rerun()
+
+    if game == "picture":
         show_picture_quiz(fruit_name, namespace=f"activity-{fruit_name.lower()}")
-    with thinking_tab:
+        st.divider()
+        show_adaptive_challenge(fruit_name)
+    else:
         show_thinking_games(fruit_name, namespace=f"activity-{fruit_name.lower()}")
 
 
@@ -361,23 +403,15 @@ with scan_tab:
         st.warning("The fruit recognition model is not ready yet.")
         if verifier_error:
             st.error(f"Checkpoint loading error: {verifier_error}")
-        st.write("Open **Adult → Model Setup** to prepare the trained FruitScan model.")
+        st.write("Open **Adult → Model Setup** to prepare the trained model.")
     else:
-        with st.sidebar:
-            st.header("🍓 FruitScan Kids")
-            st.success("Fruit recognition ready")
-            st.success("Unknown Gateway ready")
-            st.info("Learning mode: Think & Discover")
-            st.caption(
-                "Unknown or uncertain pictures are rejected instead of forced into a fruit class."
-            )
-
         show_progress_banner()
-        show_collection_book()
-        st.divider()
+        with st.expander("📖 My Fruit Collection", expanded=False):
+            show_collection_book()
 
+        st.divider()
         st.header("📷 Scan a Fruit")
-        st.write("Choose how you want to show FruitScan a fruit.")
+        st.write("Choose one big button.")
 
         if "scan_input_mode" not in st.session_state:
             st.session_state.scan_input_mode = None
@@ -409,9 +443,7 @@ with scan_tab:
         scan_token = None
 
         if mode == "camera":
-            st.markdown("### 🎥 Camera")
-            st.caption("Hold one fruit clearly in the picture, then take the photo.")
-
+            show_camera_guidance()
             camera_photo = st.camera_input(
                 "Take your fruit photo",
                 key=f"front_camera_{st.session_state.camera_widget_version}",
@@ -435,10 +467,11 @@ with scan_tab:
                 st.error("I could not reopen this camera picture.")
 
             if image is None:
-                st.info("Take a photo above. Your pictures will appear in Camera History.")
+                st.info("Take a photo above. Your picture will appear below.")
 
         elif mode == "upload":
             st.markdown("### 🖼️ Choose a Picture")
+            st.info("Choose one clear fruit picture with good light.")
             uploaded = st.file_uploader(
                 "Choose a JPG, PNG, JPEG, or WebP fruit picture",
                 type=["jpg", "jpeg", "png", "webp"],
@@ -454,7 +487,11 @@ with scan_tab:
                     st.error("I could not read this picture.")
 
         if mode is not None:
-            if st.button("↩️ Choose a different picture method", key="change_scan_mode"):
+            if st.button(
+                "↩️ Choose a different picture method",
+                key="change_scan_mode",
+                use_container_width=True,
+            ):
                 st.session_state.scan_input_mode = None
                 st.session_state.camera_widget_version += 1
                 st.session_state.upload_widget_version += 1
@@ -472,208 +509,48 @@ with scan_tab:
 
         if mode == "camera":
             st.divider()
-            show_camera_history()
+            with st.expander("📸 My Camera History", expanded=False):
+                show_camera_history()
 
 with activities_tab:
     st.header("🌟 Activities")
-    st.write(
-        "Choose one fruit, then open just the activity you want. "
-        "The latest recognised fruit is selected automatically."
-    )
+    st.caption("Choose a fruit, then choose one big activity.")
     activity_fruit = activity_fruit_picker()
     st.divider()
 
-    think_tab, kitchen_tab, games_tab = st.tabs(
-        ["🧠 Think & Discover", "👩‍🍳 Fruit Kitchen", "🎮 Quiz & Games"]
+    selected_activity = activity_home(
+        activity_fruit,
+        FRUIT_EMOJI[activity_fruit],
     )
-    with think_tab:
+    if selected_activity == "think":
         show_think_activity(activity_fruit)
-    with kitchen_tab:
+    elif selected_activity == "kitchen":
         show_kitchen_activity(activity_fruit)
-    with games_tab:
+    elif selected_activity == "games":
         show_games_activity(activity_fruit)
 
 with learn_tab:
     show_progress_banner()
-    show_collection_book()
+    with st.expander("📖 My Fruit Collection", expanded=True):
+        show_collection_book()
     st.divider()
     show_learning_browser()
 
 with adult_tab:
-    setup_tab, about_tab = st.tabs(["🛠️ Model Setup", "ℹ️ About"])
+    dashboard_tab, setup_tab, about_tab = st.tabs(
+        ["📊 Dashboard", "🛠️ Model Setup", "ℹ️ About"]
+    )
+
+    with dashboard_tab:
+        show_adult_dashboard()
 
     with setup_tab:
-        st.header("🛠️ Model Setup")
-        st.write(
-            "This section is for teachers, parents, or project setup. "
-            "Children can use Scan & Think, Activities, and Learn Fruits."
+        show_model_setup(
+            CHECKPOINT,
+            SUMMARY,
+            DATA_DIR,
+            UPLOAD_DIR,
         )
-
-        if CHECKPOINT.exists():
-            st.success("A trained model checkpoint is available.")
-            st.download_button(
-                "⬇️ Download trained model",
-                data=CHECKPOINT.read_bytes(),
-                file_name="fruit_classifier.pt",
-                mime="application/octet-stream",
-                use_container_width=True,
-            )
-        else:
-            st.warning("No trained model has been installed yet.")
-
-        st.subheader("Option A — Install an existing trained model")
-        model_upload = st.file_uploader(
-            "Upload fruit_classifier.pt",
-            type=["pt"],
-            key="checkpoint_upload",
-            help="Use a checkpoint produced by this project only.",
-        )
-
-        if model_upload is not None:
-            if model_upload.size > 100 * 1024 * 1024:
-                st.error("The checkpoint is larger than 100 MB and was not accepted.")
-            elif st.button("Install uploaded model", use_container_width=True):
-                CHECKPOINT.parent.mkdir(parents=True, exist_ok=True)
-                CHECKPOINT.write_bytes(model_upload.getbuffer())
-                st.cache_resource.clear()
-                try:
-                    FruitVerifier(CHECKPOINT)
-                except Exception as exc:
-                    CHECKPOINT.unlink(missing_ok=True)
-                    st.error(f"This checkpoint is not compatible with FruitScan Kids: {exc}")
-                else:
-                    st.success("Model installed successfully.")
-                    st.rerun()
-
-        st.divider()
-        st.subheader("Option B — Build the model from the Kaggle ZIP")
-        st.caption(
-            "Full training is best done on a computer or cloud runner with enough CPU/RAM."
-        )
-
-        zip_upload = st.file_uploader(
-            "Upload the Fruits Classification ZIP",
-            type=["zip"],
-            key="dataset_zip",
-        )
-
-        if zip_upload is not None:
-            if st.button("1️⃣ Extract and scan dataset", use_container_width=True):
-                UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-                zip_path = UPLOAD_DIR / "fruits-classification.zip"
-                zip_path.write_bytes(zip_upload.getbuffer())
-                try:
-                    with st.spinner("Extracting and checking the dataset images..."):
-                        root = extract_dataset(zip_path, DATA_DIR)
-                        summary = scan_dataset(root, verify_images=True)
-                        save_summary(summary, SUMMARY)
-                    st.success("Dataset prepared successfully.")
-                    show_dataset_summary(summary)
-                except Exception as exc:
-                    st.exception(exc)
-
-        if SUMMARY.exists():
-            try:
-                saved_summary = json.loads(SUMMARY.read_text(encoding="utf-8"))
-                with st.expander("Current dataset scan", expanded=False):
-                    show_dataset_summary(saved_summary)
-            except Exception:
-                pass
-
-        dataset_ready = all(
-            (DATA_DIR / split).exists() for split in ("train", "valid", "test")
-        )
-        if dataset_ready:
-            st.success("Training dataset is ready.")
-            epochs = st.slider(
-                "Training epochs",
-                min_value=4,
-                max_value=16,
-                value=8,
-                step=1,
-            )
-
-            if st.button(
-                "2️⃣ Train classifier + verifier",
-                type="primary",
-                use_container_width=True,
-            ):
-                CHECKPOINT.parent.mkdir(parents=True, exist_ok=True)
-                cmd = [
-                    sys.executable,
-                    "-u",
-                    "train.py",
-                    "--data",
-                    str(DATA_DIR),
-                    "--epochs",
-                    str(epochs),
-                    "--workers",
-                    "0",
-                ]
-
-                log_box = st.empty()
-                lines: list[str] = []
-
-                with st.status("Training FruitScan Kids...", expanded=True) as status:
-                    process = subprocess.Popen(
-                        cmd,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.STDOUT,
-                        text=True,
-                        bufsize=1,
-                    )
-
-                    assert process.stdout is not None
-
-                    for line in process.stdout:
-                        lines.append(line.rstrip())
-                        log_box.code("\n".join(lines[-24:]))
-
-                    return_code = process.wait()
-
-                    if return_code == 0 and CHECKPOINT.exists():
-                        status.update(label="Training completed", state="complete")
-                        st.cache_resource.clear()
-                        st.success("The trained model is ready. Open Scan & Think.")
-                        st.rerun()
-                    else:
-                        status.update(label="Training failed", state="error")
-                        st.error(
-                            "Training did not finish successfully. Check the log above."
-                        )
 
     with about_tab:
-        st.header("ℹ️ About FruitScan Kids")
-        st.write(
-            "FruitScan Kids keeps scanning, thinking, recipes, and games in separate spaces "
-            "so children can focus on one activity at a time."
-        )
-        st.markdown(
-            """
-### Simple learning journey
-
-**1. 📷 Scan & Think** — Take or provide a picture. The Unknown Gateway checks whether it safely matches one of the trained fruits before any fruit name is shown.  
-**2. 🤔 Predict & Discover** — For accepted pictures, predict the fruit, explain a clue, then reveal FruitScan's answer.  
-**3. 🌟 Activities** — The recognised fruit is carried into the activity area automatically.  
-**4. 🧠 Think & Discover** — Observe, predict the inside, compare fruits, sequence growth, reason, and teach back.  
-**5. 👩‍🍳 Fruit Kitchen** — Explore food, drink, and dessert ideas in one separate place.  
-**6. 🎮 Quiz & Games** — Play Picture Quiz and Thinking Games without crowding the scan page.  
-**7. 🎓 Learn Fruits** — Browse fruit lessons and the Collection Book.  
-**8. ⚙️ Adult** — Keep model setup and project information away from the child learning flow.
-            """
-        )
-        st.info(
-            "The recognition model is trained for five classes only: Apple, Banana, Grape, "
-            "Mango, and Strawberry. The Unknown Gateway reduces forced guesses for other "
-            "fruits or unrelated images, but no closed-set image model can guarantee perfect "
-            "unknown detection."
-        )
-        st.warning(
-            "👨‍👩‍👧 Food activities require adult supervision. Adults should handle knives, "
-            "blenders, heat, allergies, and age-appropriate choking safety."
-        )
-        st.info(
-            "Camera History is temporary and session-only. It keeps the newest 12 camera "
-            "pictures while the current Streamlit session is active and does not save "
-            "children's photos to GitHub."
-        )
+        show_about()
