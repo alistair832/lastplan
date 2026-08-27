@@ -124,7 +124,7 @@ def _result_caption(item: dict) -> tuple[str, str]:
         detail = f"Confidence: {result['confidence'] * 100:.1f}%"
         return title, detail
 
-    return "🤔 Not verified", f"Confidence: {result['confidence'] * 100:.1f}%"
+    return "❓ Unknown", "Did not pass the recognition gateway — try another picture."
 
 
 def show_camera_history() -> None:
