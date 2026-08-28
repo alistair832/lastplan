@@ -1,0 +1,102 @@
+{
+  "algorithm": "Custom CNN from Scratch",
+  "accuracy": 0.63,
+  "macro_precision": 0.6806360306360306,
+  "macro_recall": 0.6299999999999999,
+  "macro_f1": 0.6372686030934113,
+  "weighted_precision": 0.6806360306360307,
+  "weighted_recall": 0.63,
+  "weighted_f1": 0.6372686030934114,
+  "training_seconds": 579.591624434,
+  "classification_report": {
+    "Apple": {
+      "precision": 0.5,
+      "recall": 0.65,
+      "f1-score": 0.5652173913043478,
+      "support": 20.0
+    },
+    "Banana": {
+      "precision": 0.5909090909090909,
+      "recall": 0.65,
+      "f1-score": 0.6190476190476191,
+      "support": 20.0
+    },
+    "Grape": {
+      "precision": 0.8571428571428571,
+      "recall": 0.6,
+      "f1-score": 0.7058823529411765,
+      "support": 20.0
+    },
+    "Mango": {
+      "precision": 0.5384615384615384,
+      "recall": 0.7,
+      "f1-score": 0.6086956521739131,
+      "support": 20.0
+    },
+    "Strawberry": {
+      "precision": 0.9166666666666666,
+      "recall": 0.55,
+      "f1-score": 0.6875,
+      "support": 20.0
+    },
+    "accuracy": 0.63,
+    "macro avg": {
+      "precision": 0.6806360306360306,
+      "recall": 0.6299999999999999,
+      "f1-score": 0.6372686030934113,
+      "support": 100.0
+    },
+    "weighted avg": {
+      "precision": 0.6806360306360307,
+      "recall": 0.63,
+      "f1-score": 0.6372686030934114,
+      "support": 100.0
+    }
+  },
+  "confusion_matrix": [
+    [
+      13,
+      2,
+      0,
+      4,
+      1
+    ],
+    [
+      1,
+      13,
+      0,
+      6,
+      0
+    ],
+    [
+      3,
+      3,
+      12,
+      2,
+      0
+    ],
+    [
+      1,
+      4,
+      1,
+      14,
+      0
+    ],
+    [
+      8,
+      0,
+      1,
+      0,
+      11
+    ]
+  ],
+  "class_names": [
+    "Apple",
+    "Banana",
+    "Grape",
+    "Mango",
+    "Strawberry"
+  ],
+  "best_validation_accuracy": 0.66,
+  "image_size": 128
+}

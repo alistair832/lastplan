@@ -1,0 +1,301 @@
+{
+  "models": [
+    {
+      "algorithm": "MobileNetV3-Small Transfer Learning",
+      "accuracy": 0.9200000166893005,
+      "macro_precision": 0.919712918660287,
+      "macro_recall": 0.9199999999999999,
+      "macro_f1": 0.9191941391941392,
+      "training_seconds": null,
+      "classification_report": {
+        "Apple": {
+          "precision": 0.8947368421052632,
+          "recall": 0.85,
+          "f1-score": 0.8717948717948718,
+          "support": 20.0
+        },
+        "Banana": {
+          "precision": 0.9090909090909091,
+          "recall": 1.0,
+          "f1-score": 0.9523809523809523,
+          "support": 20.0
+        },
+        "Grape": {
+          "precision": 0.95,
+          "recall": 0.95,
+          "f1-score": 0.95,
+          "support": 20.0
+        },
+        "Mango": {
+          "precision": 0.8947368421052632,
+          "recall": 0.85,
+          "f1-score": 0.8717948717948718,
+          "support": 20.0
+        },
+        "Strawberry": {
+          "precision": 0.95,
+          "recall": 0.95,
+          "f1-score": 0.95,
+          "support": 20.0
+        },
+        "accuracy": 0.92,
+        "macro avg": {
+          "precision": 0.919712918660287,
+          "recall": 0.9199999999999999,
+          "f1-score": 0.9191941391941392,
+          "support": 100.0
+        },
+        "weighted avg": {
+          "precision": 0.919712918660287,
+          "recall": 0.92,
+          "f1-score": 0.9191941391941393,
+          "support": 100.0
+        }
+      },
+      "confusion_matrix": [
+        [
+          17,
+          0,
+          0,
+          2,
+          1
+        ],
+        [
+          0,
+          20,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          1,
+          19,
+          0,
+          0
+        ],
+        [
+          2,
+          1,
+          0,
+          17,
+          0
+        ],
+        [
+          0,
+          0,
+          1,
+          0,
+          19
+        ]
+      ],
+      "class_names": [
+        "Apple",
+        "Banana",
+        "Grape",
+        "Mango",
+        "Strawberry"
+      ],
+      "source": "artifacts/metrics.json",
+      "rank": 1
+    },
+    {
+      "algorithm": "Custom CNN from Scratch",
+      "accuracy": 0.63,
+      "macro_precision": 0.6806360306360306,
+      "macro_recall": 0.6299999999999999,
+      "macro_f1": 0.6372686030934113,
+      "training_seconds": 579.591624434,
+      "classification_report": {
+        "Apple": {
+          "precision": 0.5,
+          "recall": 0.65,
+          "f1-score": 0.5652173913043478,
+          "support": 20.0
+        },
+        "Banana": {
+          "precision": 0.5909090909090909,
+          "recall": 0.65,
+          "f1-score": 0.6190476190476191,
+          "support": 20.0
+        },
+        "Grape": {
+          "precision": 0.8571428571428571,
+          "recall": 0.6,
+          "f1-score": 0.7058823529411765,
+          "support": 20.0
+        },
+        "Mango": {
+          "precision": 0.5384615384615384,
+          "recall": 0.7,
+          "f1-score": 0.6086956521739131,
+          "support": 20.0
+        },
+        "Strawberry": {
+          "precision": 0.9166666666666666,
+          "recall": 0.55,
+          "f1-score": 0.6875,
+          "support": 20.0
+        },
+        "accuracy": 0.63,
+        "macro avg": {
+          "precision": 0.6806360306360306,
+          "recall": 0.6299999999999999,
+          "f1-score": 0.6372686030934113,
+          "support": 100.0
+        },
+        "weighted avg": {
+          "precision": 0.6806360306360307,
+          "recall": 0.63,
+          "f1-score": 0.6372686030934114,
+          "support": 100.0
+        }
+      },
+      "confusion_matrix": [
+        [
+          13,
+          2,
+          0,
+          4,
+          1
+        ],
+        [
+          1,
+          13,
+          0,
+          6,
+          0
+        ],
+        [
+          3,
+          3,
+          12,
+          2,
+          0
+        ],
+        [
+          1,
+          4,
+          1,
+          14,
+          0
+        ],
+        [
+          8,
+          0,
+          1,
+          0,
+          11
+        ]
+      ],
+      "class_names": [
+        "Apple",
+        "Banana",
+        "Grape",
+        "Mango",
+        "Strawberry"
+      ],
+      "source": "experiments/results/custom_cnn.json",
+      "rank": 2
+    },
+    {
+      "algorithm": "HOG + Linear SVM",
+      "accuracy": 0.37,
+      "macro_precision": 0.3725292290829375,
+      "macro_recall": 0.37,
+      "macro_f1": 0.3660922550457434,
+      "training_seconds": 118.39935158900005,
+      "classification_report": {
+        "Apple": {
+          "precision": 0.35294117647058826,
+          "recall": 0.3,
+          "f1-score": 0.32432432432432434,
+          "support": 20.0
+        },
+        "Banana": {
+          "precision": 0.375,
+          "recall": 0.3,
+          "f1-score": 0.3333333333333333,
+          "support": 20.0
+        },
+        "Grape": {
+          "precision": 0.39285714285714285,
+          "recall": 0.55,
+          "f1-score": 0.4583333333333333,
+          "support": 20.0
+        },
+        "Mango": {
+          "precision": 0.30434782608695654,
+          "recall": 0.35,
+          "f1-score": 0.32558139534883723,
+          "support": 20.0
+        },
+        "Strawberry": {
+          "precision": 0.4375,
+          "recall": 0.35,
+          "f1-score": 0.3888888888888889,
+          "support": 20.0
+        },
+        "accuracy": 0.37,
+        "macro avg": {
+          "precision": 0.3725292290829375,
+          "recall": 0.37,
+          "f1-score": 0.3660922550457434,
+          "support": 100.0
+        },
+        "weighted avg": {
+          "precision": 0.37252922908293756,
+          "recall": 0.37,
+          "f1-score": 0.3660922550457434,
+          "support": 100.0
+        }
+      },
+      "confusion_matrix": [
+        [
+          6,
+          5,
+          2,
+          3,
+          4
+        ],
+        [
+          2,
+          6,
+          3,
+          8,
+          1
+        ],
+        [
+          1,
+          3,
+          11,
+          3,
+          2
+        ],
+        [
+          4,
+          2,
+          5,
+          7,
+          2
+        ],
+        [
+          4,
+          0,
+          7,
+          2,
+          7
+        ]
+      ],
+      "class_names": [
+        "Apple",
+        "Banana",
+        "Grape",
+        "Mango",
+        "Strawberry"
+      ],
+      "source": "experiments/results/hog_svm.json",
+      "rank": 3
+    }
+  ]
+}

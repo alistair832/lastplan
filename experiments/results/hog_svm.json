@@ -1,0 +1,116 @@
+{
+  "algorithm": "HOG + Linear SVM",
+  "accuracy": 0.37,
+  "macro_precision": 0.3725292290829375,
+  "macro_recall": 0.37,
+  "macro_f1": 0.3660922550457434,
+  "weighted_precision": 0.37252922908293756,
+  "weighted_recall": 0.37,
+  "weighted_f1": 0.3660922550457434,
+  "training_seconds": 118.39935158900005,
+  "classification_report": {
+    "Apple": {
+      "precision": 0.35294117647058826,
+      "recall": 0.3,
+      "f1-score": 0.32432432432432434,
+      "support": 20.0
+    },
+    "Banana": {
+      "precision": 0.375,
+      "recall": 0.3,
+      "f1-score": 0.3333333333333333,
+      "support": 20.0
+    },
+    "Grape": {
+      "precision": 0.39285714285714285,
+      "recall": 0.55,
+      "f1-score": 0.4583333333333333,
+      "support": 20.0
+    },
+    "Mango": {
+      "precision": 0.30434782608695654,
+      "recall": 0.35,
+      "f1-score": 0.32558139534883723,
+      "support": 20.0
+    },
+    "Strawberry": {
+      "precision": 0.4375,
+      "recall": 0.35,
+      "f1-score": 0.3888888888888889,
+      "support": 20.0
+    },
+    "accuracy": 0.37,
+    "macro avg": {
+      "precision": 0.3725292290829375,
+      "recall": 0.37,
+      "f1-score": 0.3660922550457434,
+      "support": 100.0
+    },
+    "weighted avg": {
+      "precision": 0.37252922908293756,
+      "recall": 0.37,
+      "f1-score": 0.3660922550457434,
+      "support": 100.0
+    }
+  },
+  "confusion_matrix": [
+    [
+      6,
+      5,
+      2,
+      3,
+      4
+    ],
+    [
+      2,
+      6,
+      3,
+      8,
+      1
+    ],
+    [
+      1,
+      3,
+      11,
+      3,
+      2
+    ],
+    [
+      4,
+      2,
+      5,
+      7,
+      2
+    ],
+    [
+      4,
+      0,
+      7,
+      2,
+      7
+    ]
+  ],
+  "class_names": [
+    "Apple",
+    "Banana",
+    "Grape",
+    "Mango",
+    "Strawberry"
+  ],
+  "best_validation_accuracy": 0.365,
+  "c_value": 1.0,
+  "image_size": 64,
+  "feature_extraction_seconds": 15.965176067000016,
+  "feature_dimension": 1764,
+  "hog": {
+    "orientations": 9,
+    "pixels_per_cell": [
+      8,
+      8
+    ],
+    "cells_per_block": [
+      2,
+      2
+    ]
+  }
+}

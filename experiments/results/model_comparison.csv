@@ -1,0 +1,4 @@
+rank,algorithm,accuracy,macro_precision,macro_recall,macro_f1,training_seconds,source
+1,MobileNetV3-Small Transfer Learning,0.9200000166893005,0.919712918660287,0.9199999999999999,0.9191941391941392,,artifacts/metrics.json
+2,Custom CNN from Scratch,0.63,0.6806360306360306,0.6299999999999999,0.6372686030934113,579.591624434,experiments/results/custom_cnn.json
+3,HOG + Linear SVM,0.37,0.3725292290829375,0.37,0.3660922550457434,118.39935158900005,experiments/results/hog_svm.json
