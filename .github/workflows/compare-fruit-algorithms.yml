@@ -2,22 +2,18 @@ name: Compare Three Fruit Algorithms
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - '.github/workflows/compare-fruit-algorithms.yml'
-      - 'experiments/*.py'
-      - 'experiments/README.md'
-      - 'requirements.txt'
 
 permissions:
   contents: write
 
+concurrency:
+  group: fruit-algorithm-comparison
+  cancel-in-progress: true
+
 jobs:
   compare:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 45
 
     steps:
       - name: Checkout main
@@ -63,8 +59,8 @@ jobs:
         run: |
           python -m experiments.hog_svm \
             --data "${{ steps.dataset.outputs.path }}" \
-            --image-size 96 \
-            --c-values 0.1 1.0 10.0
+            --image-size 64 \
+            --c-value 1.0
 
       - name: Build three-model comparison
         run: |
