@@ -49,7 +49,21 @@ The project dataset contains 10,000 images across five balanced fruit classes:
 | Test | 20 | 20 | 20 | 20 | 20 | 100 |
 | **Total** | **2,000** | **2,000** | **2,000** | **2,000** | **2,000** | **10,000** |
 
-Current saved metrics are available in `artifacts/metrics.json`.
+Current saved MobileNetV3 metrics are available in `artifacts/metrics.json`.
+
+## Three-member algorithm comparison
+
+The assignment comparison is separated from the child-facing app. The group uses three different approaches:
+
+| Member | Method | Type |
+|---|---|---|
+| Member 1 | MobileNetV3-Small Transfer Learning | Pretrained CNN / deep learning |
+| Member 2 | Custom CNN from Scratch | CNN / deep learning |
+| Member 3 | HOG + Linear SVM | Traditional machine learning |
+
+The experiment code is stored under `experiments/`. All three methods use the same five classes and the same provided train/validation/test folder split. The automated benchmark creates accuracy, macro precision, macro recall, macro F1-score, per-class metrics, confusion matrices, and a final comparison table.
+
+The child-facing Streamlit application continues to use only the selected deployed model; children are not asked to choose between algorithms.
 
 ## Project structure
 
@@ -71,15 +85,23 @@ lastplan/
 ├── thinking_mode.py           # Prediction and higher-order thinking activities
 ├── model.py                   # MobileNetV3-Small model definition
 ├── verifier.py                # Unknown/verification gateway
-├── train.py                   # Developer training and calibration script
-├── dataset_utils.py           # Dataset scan helpers used during training
+├── train.py                   # Member 1 / developer MobileNet training
+├── dataset_utils.py           # Shared dataset helpers
 ├── predict.py                 # Optional command-line model diagnostic
+├── experiments/
+│   ├── README.md              # Three-member methodology
+│   ├── common.py              # Shared evaluation utilities
+│   ├── custom_cnn.py          # Member 2 experiment
+│   ├── hog_svm.py             # Member 3 experiment
+│   ├── compare_results.py     # Builds final comparison tables
+│   └── results/               # Generated benchmark outputs
 ├── requirements.txt
 ├── .streamlit/config.toml
 ├── .github/workflows/train-fruit-model.yml
+├── .github/workflows/compare-fruit-algorithms.yml
 └── artifacts/
     ├── fruit_classifier.pt    # Trained checkpoint used by the app
-    ├── metrics.json           # Saved evaluation metrics
+    ├── metrics.json           # Saved MobileNetV3 evaluation metrics
     └── dataset_summary.json   # Saved dataset summary
 ```
 
