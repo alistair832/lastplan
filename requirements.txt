@@ -5,3 +5,4 @@ pandas>=2.2,<4
 Pillow>=10.0,<13
 numpy>=1.26,<3
 scikit-learn>=1.4,<2
+scikit-image>=0.23,<1
