@@ -1,0 +1,95 @@
+name: Compare Three Fruit Algorithms
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/compare-fruit-algorithms.yml'
+      - 'experiments/*.py'
+      - 'experiments/README.md'
+      - 'requirements.txt'
+
+permissions:
+  contents: write
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install kagglehub
+
+      - name: Download public Kaggle fruit dataset
+        id: dataset
+        run: |
+          python - <<'PY'
+          import os
+          import kagglehub
+
+          path = kagglehub.dataset_download('utkarshsaxenadn/fruits-classification')
+          print(f'Dataset downloaded to: {path}')
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              output.write(f'path={path}\n')
+          PY
+
+      - name: Member 2 - Train custom CNN
+        run: |
+          python -m experiments.custom_cnn \
+            --data "${{ steps.dataset.outputs.path }}" \
+            --epochs 6 \
+            --image-size 128 \
+            --batch-size 64 \
+            --workers 2
+
+      - name: Member 3 - Train HOG plus SVM
+        run: |
+          python -m experiments.hog_svm \
+            --data "${{ steps.dataset.outputs.path }}" \
+            --image-size 96 \
+            --c-values 0.1 1.0 10.0
+
+      - name: Build three-model comparison
+        run: |
+          python -m experiments.compare_results
+          cat experiments/results/RESULTS.md
+
+      - name: Commit comparison results
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add experiments/results/custom_cnn.json \
+                  experiments/results/hog_svm.json \
+                  experiments/results/model_comparison.csv \
+                  experiments/results/model_comparison.json \
+                  experiments/results/RESULTS.md
+          if git diff --cached --quiet; then
+            echo "No comparison changes to commit."
+          else
+            git commit -m "Add three-algorithm comparison results [skip ci]"
+            git push origin HEAD:main
+          fi
+
+      - name: Upload comparison artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fruit-algorithm-comparison
+          path: experiments/results/
+          retention-days: 30
