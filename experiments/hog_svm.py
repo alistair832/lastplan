@@ -17,16 +17,21 @@ from experiments.common import build_metrics, save_metrics
 
 
 def load_split(split_dir: Path, class_names: list[str], image_size: int):
+    """Extract one compact HOG vector for every image in a dataset split."""
     features: list[np.ndarray] = []
     labels: list[int] = []
+
     for class_index, class_name in enumerate(class_names):
         files = sorted(image_files(split_dir / class_name))
+        print(f"  {split_dir.name}/{class_name}: {len(files)} images", flush=True)
+
         for path in files:
             with Image.open(path) as image:
                 rgb = np.asarray(
                     image.convert("RGB").resize((image_size, image_size)),
                     dtype=np.float32,
                 ) / 255.0
+
             gray = rgb2gray(rgb)
             vector = hog(
                 gray,
@@ -38,66 +43,92 @@ def load_split(split_dir: Path, class_names: list[str], image_size: int):
             )
             features.append(vector.astype(np.float32, copy=False))
             labels.append(class_index)
+
     return np.stack(features), np.asarray(labels, dtype=np.int64)
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Member 3: HOG + Linear SVM fruit classifier.")
+    parser = argparse.ArgumentParser(
+        description="Member 3: HOG + Linear SVM fruit classifier."
+    )
     parser.add_argument("--data", type=Path, required=True)
-    parser.add_argument("--output", type=Path, default=Path("experiments/results/hog_svm.json"))
-    parser.add_argument("--image-size", type=int, default=96)
-    parser.add_argument("--c-values", type=float, nargs="+", default=[0.1, 1.0, 10.0])
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=Path("experiments/results/hog_svm.json"),
+    )
+    parser.add_argument(
+        "--image-size",
+        type=int,
+        default=64,
+        help="Compact HOG input size. 64 keeps the experiment practical on CPU.",
+    )
+    parser.add_argument(
+        "--c-value",
+        type=float,
+        default=1.0,
+        help="Fixed Linear SVM regularization value. Kept fixed for a fair, fast baseline.",
+    )
     args = parser.parse_args()
 
     root = discover_dataset_root(args.data)
-    class_names = sorted(path.name for path in (root / "train").iterdir() if path.is_dir())
+    class_names = sorted(
+        path.name for path in (root / "train").iterdir() if path.is_dir()
+    )
 
-    print("Extracting HOG features...")
+    feature_started = time.perf_counter()
+    print("Extracting compact HOG features from the full dataset...", flush=True)
     x_train, y_train = load_split(root / "train", class_names, args.image_size)
     x_valid, y_valid = load_split(root / "valid", class_names, args.image_size)
     x_test, y_test = load_split(root / "test", class_names, args.image_size)
+    feature_seconds = time.perf_counter() - feature_started
 
-    started = time.perf_counter()
-    best_c = None
-    best_valid_accuracy = -1.0
-    for c_value in args.c_values:
-        candidate = make_pipeline(
-            StandardScaler(),
-            LinearSVC(C=c_value, dual="auto", max_iter=10000, random_state=42),
-        )
-        candidate.fit(x_train, y_train)
-        valid_accuracy = float((candidate.predict(x_valid) == y_valid).mean())
-        print(f"C={c_value:g} validation accuracy: {valid_accuracy:.3%}")
-        if valid_accuracy > best_valid_accuracy:
-            best_valid_accuracy = valid_accuracy
-            best_c = c_value
+    print(
+        f"HOG extraction complete in {feature_seconds:.1f}s; "
+        f"feature dimension = {x_train.shape[1]}",
+        flush=True,
+    )
 
-    if best_c is None:
-        raise RuntimeError("SVM validation did not produce a model.")
-
-    x_fit = np.concatenate([x_train, x_valid], axis=0)
-    y_fit = np.concatenate([y_train, y_valid], axis=0)
     model = make_pipeline(
         StandardScaler(),
-        LinearSVC(C=best_c, dual="auto", max_iter=10000, random_state=42),
+        LinearSVC(
+            C=args.c_value,
+            dual=False,
+            max_iter=5000,
+            random_state=42,
+        ),
     )
-    model.fit(x_fit, y_fit)
-    elapsed = time.perf_counter() - started
+
+    train_started = time.perf_counter()
+    model.fit(x_train, y_train)
+    training_seconds = time.perf_counter() - train_started
+
+    valid_pred = model.predict(x_valid)
+    valid_accuracy = float((valid_pred == y_valid).mean())
     y_pred = model.predict(x_test)
 
     metrics = build_metrics(
-        y_test, y_pred, class_names, elapsed, "HOG + Linear SVM"
+        y_test,
+        y_pred,
+        class_names,
+        training_seconds,
+        "HOG + Linear SVM",
     )
-    metrics["best_validation_accuracy"] = best_valid_accuracy
-    metrics["best_c"] = best_c
+    metrics["best_validation_accuracy"] = valid_accuracy
+    metrics["c_value"] = args.c_value
     metrics["image_size"] = args.image_size
+    metrics["feature_extraction_seconds"] = feature_seconds
+    metrics["feature_dimension"] = int(x_train.shape[1])
     metrics["hog"] = {
         "orientations": 9,
         "pixels_per_cell": [8, 8],
         "cells_per_block": [2, 2],
     }
+
     save_metrics(metrics, args.output)
+    print(f"Validation accuracy: {valid_accuracy:.3%}")
     print(f"HOG + SVM test accuracy: {metrics['accuracy']:.3%}")
+    print(f"SVM training time: {training_seconds:.1f}s")
     print(f"Saved: {args.output}")
 
 
