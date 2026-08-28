@@ -2,6 +2,11 @@ name: Compare Three Fruit Algorithms
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/compare-fruit-algorithms.yml'
 
 permissions:
   contents: write
@@ -11,15 +16,14 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  compare:
+  custom-cnn:
+    name: Member 2 - Custom CNN
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 25
 
     steps:
-      - name: Checkout main
+      - name: Checkout project
         uses: actions/checkout@v4
-        with:
-          ref: main
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -46,7 +50,7 @@ jobs:
               output.write(f'path={path}\n')
           PY
 
-      - name: Member 2 - Train custom CNN
+      - name: Train and evaluate Custom CNN
         run: |
           python -m experiments.custom_cnn \
             --data "${{ steps.dataset.outputs.path }}" \
@@ -55,12 +59,91 @@ jobs:
             --batch-size 64 \
             --workers 2
 
-      - name: Member 3 - Train HOG plus SVM
+      - name: Save Custom CNN result
+        uses: actions/upload-artifact@v4
+        with:
+          name: custom-cnn-result
+          path: experiments/results/custom_cnn.json
+          retention-days: 30
+
+  hog-svm:
+    name: Member 3 - HOG + Linear SVM
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install kagglehub
+
+      - name: Download public Kaggle fruit dataset
+        id: dataset
+        run: |
+          python - <<'PY'
+          import os
+          import kagglehub
+
+          path = kagglehub.dataset_download('utkarshsaxenadn/fruits-classification')
+          print(f'Dataset downloaded to: {path}')
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              output.write(f'path={path}\n')
+          PY
+
+      - name: Extract HOG features, train and evaluate SVM
         run: |
           python -m experiments.hog_svm \
             --data "${{ steps.dataset.outputs.path }}" \
             --image-size 64 \
             --c-value 1.0
+
+      - name: Save HOG + SVM result
+        uses: actions/upload-artifact@v4
+        with:
+          name: hog-svm-result
+          path: experiments/results/hog_svm.json
+          retention-days: 30
+
+  compare:
+    name: Build final three-model comparison
+    needs:
+      - custom-cnn
+      - hog-svm
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Download Custom CNN result
+        uses: actions/download-artifact@v4
+        with:
+          name: custom-cnn-result
+          path: experiments/results
+
+      - name: Download HOG + SVM result
+        uses: actions/download-artifact@v4
+        with:
+          name: hog-svm-result
+          path: experiments/results
 
       - name: Build three-model comparison
         run: |
@@ -80,10 +163,11 @@ jobs:
             echo "No comparison changes to commit."
           else
             git commit -m "Add three-algorithm comparison results [skip ci]"
+            git pull --rebase origin main
             git push origin HEAD:main
           fi
 
-      - name: Upload comparison artifact
+      - name: Upload final comparison artifact
         uses: actions/upload-artifact@v4
         with:
           name: fruit-algorithm-comparison
